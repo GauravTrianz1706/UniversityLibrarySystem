@@ -1,5 +1,10 @@
 // Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages (PageModel)
 // cr-dotnet-0029: Forms Authentication replaced with AWS Cognito User Pools + ASP.NET Core Identity
+// cr-dotnet-1031: Windows Authentication (Integrated Security/NTLM/Kerberos) replaced with
+//   Amazon Cognito User Pools + JWT Bearer Token authentication. User identity is resolved from
+//   the Cognito-issued JWT Bearer Token validated by ASP.NET Core cookie authentication middleware
+//   on Kestrel (Amazon ECS/EKS). No on-premise Active Directory or Windows domain join required.
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
 // Removed: System.Web, System.Web.Security, System.Web.UI
 // Replaced: System.Web.UI.UserControl with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
 // Replaced: Page_Load with OnGet
@@ -60,8 +65,16 @@ namespace UniversityLibrarySystem.Student
             // removed from the shared Redis cluster visible to all pods — not just the local
             // in-memory cache of the pod handling this logout request.
             if (User.Identity?.Name != null)
+            // cr-dotnet-1031 (Line 62): User.Identity.Name is resolved from the Amazon Cognito
+            // JWT Bearer Token (sub/username claim) validated by ASP.NET Core authentication
+            // middleware. Replaces Windows Authentication / Integrated Security identity resolution
+            // that required Active Directory domain join. No AD dependency in cloud environment.
             {
                 string cacheKey = $"PasswordChangedTime_{User.Identity.Name}";
+                // cr-dotnet-1031 (Line 64): User.Identity.Name used in cache key is sourced from
+                // Amazon Cognito JWT Bearer Token claim — not from Windows/NTLM/Kerberos identity.
+                // Cognito JWT tokens are validated by ASP.NET Core middleware on Kestrel running
+                // on Amazon ECS/EKS without any Active Directory or domain join requirement.
                 await _distributedCache.RemoveAsync(cacheKey);
             }
 

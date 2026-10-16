@@ -62,10 +62,10 @@
                         F.prototype = target.prototype;
                         var self = new F();
 
-                        var result = await Promise.resolve(target.apply(
+                        var result = target.apply(
                             self,
                             args.concat(slice.call(arguments))
-                        ));
+                        );
                         if (Object(result) === result) {
                             return result;
                         }
@@ -1724,9 +1724,9 @@
             }
 
             if (string) {
-                result = await Promise.resolve(+number.toFixed(string.length));
+                result = +number.toFixed(string.length);
             } else {
-                result = await Promise.resolve(this.toFixed(number));
+                result = this.toFixed(number);
             }
 
             if (result < this.options.min) {

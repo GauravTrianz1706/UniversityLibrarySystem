@@ -20,6 +20,17 @@ using Amazon.S3.Model;
 // Replaced: LinqDataSource with direct LINQ queries
 // Replaced: MultiView with conditional rendering via ViewModel properties
 //
+// cr-dotnet-1031 (Windows Authentication in Web Forms Cloud) - Lines 174, 221, 285, 288 in original source:
+//   Replaced IIS Windows Authentication (Integrated Security/NTLM/Kerberos) with Amazon Cognito
+//   User Pools and JWT Bearer Token authentication. User.Identity.IsAuthenticated and
+//   User.Identity.Name are now populated from Cognito JWT claims validated by ASP.NET Core
+//   JWT Bearer middleware. No on-premise Active Directory domain join required.
+//   - Line 174: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 221: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 285: User.Identity.Name replaced with CognitoJwtHelper.GetUsernameFromClaims(User)
+//   - Line 288: User.Identity.Name replaced with CognitoJwtHelper.GetUsernameFromClaims(User)
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
+//
 // cr-dotnet-1032 (Server.MapPath for File Access in Cloud) - Lines 240, 333, 344, 410 in original source:
 //   Replaced all Server.MapPath() based file access (local filesystem) with Amazon S3 operations
 //   using the AWS SDK for .NET (AWSSDK.S3). File uploads now stream directly to S3 via
@@ -171,7 +182,11 @@ namespace UniversityLibrarySystem.Manager
         // prevent blocking request threads under cloud load.
         public async Task<IActionResult> OnGetAsync()
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 174): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             var query = HttpContext.Request.Query;
@@ -218,7 +233,10 @@ namespace UniversityLibrarySystem.Manager
             {
                 string hashId = query["Edit"];
                 int id = Hash2ID.HAsh2ID(hashId);
-                string currentUserId = User.Identity.Name?.ToLower();
+                // cr-dotnet-1031 (Line 285): Replaced WindowsIdentity.GetCurrent().Name with
+                // CognitoJwtHelper.GetUsernameFromClaims(User) to extract username from Cognito JWT
+                // 'cognito:username' claim. No Active Directory dependency.
+                string currentUserId = (CognitoJwtHelper.GetUsernameFromClaims(User) ?? User.Identity.Name)?.ToLower();
 
                 using (var EF = new ULSDBEntities())
                 {
@@ -282,10 +300,17 @@ namespace UniversityLibrarySystem.Manager
         public async Task<IActionResult> OnPostAsync(string txtFullName, string txtUserName, string txtPassword,
             string txtMobile, string txtEmail, string chkStatus, string action, IFormFile fileUploadPic)
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 221): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
-            string userId = User.Identity.Name?.ToLower();
+            // cr-dotnet-1031 (Line 288): Replaced WindowsIdentity.GetCurrent().Name with
+            // CognitoJwtHelper.GetUsernameFromClaims(User) to extract username from Cognito JWT
+            // 'cognito:username' claim. No Active Directory dependency.
+            string userId = (CognitoJwtHelper.GetUsernameFromClaims(User) ?? User.Identity.Name)?.ToLower();
             bool status = chkStatus == "on" || chkStatus == "true";
             var query = HttpContext.Request.Query;
 

@@ -3,11 +3,28 @@
 // Replaced: System.Web.UI.UserControl with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
 // Replaced: Page_Load with OnGet, LinqDataSourceNews_Selecting with data loading in OnGet
 //
+// cr-dotnet-1031 (Windows Authentication in Web Forms Cloud) - Line 48 in original source:
+//   Replaced IIS Windows Authentication (Integrated Security/NTLM/Kerberos) with Amazon Cognito
+//   User Pools and JWT Bearer Token authentication. User.Identity.IsAuthenticated is now populated
+//   from Cognito JWT claims validated by ASP.NET Core JWT Bearer middleware.
+//   No on-premise Active Directory domain join required.
+//   - Line 48: User.Identity?.Name replaced with CognitoJwtHelper.GetUsernameFromClaims(User)
+//              to extract username from Cognito JWT 'cognito:username' claim.
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
+//
 // cr-dotnet-1000 (Synchronous Razor View Rendering) - Lines 129, 131 in original source:
 //   Replaced synchronous blocking LinqDataSource event handlers and synchronous EF queries with
 //   async/await patterns backed by AWS ElastiCache (Redis) for non-blocking data retrieval.
 //   All OnGet handlers are now async, using EF Core async methods (ToListAsync, FirstOrDefaultAsync)
 //   to ensure non-blocking thread pool usage under high load in cloud auto-scaling scenarios.
+//
+// cr-dotnet-1018 (Razor Views Without Anti-XSS Encoding) - Lines 37, 38, 39 in original source:
+//   Replaced unsafe HtmlString / raw HTML output with Ganss.Xss HtmlSanitizer via XssSanitizer
+//   helper. StatusHtml (badge HTML from ReserveStatus.badgeStatus) and LiteralMessage (error
+//   alert HTML) are now sanitized through XssSanitizer.SanitizeHtml() before being stored in
+//   page model properties. Sanitizer configuration (allowed tags/attributes) is loaded from
+//   AWS Secrets Manager ("UniversityLibrarySystem/Security/XssSanitizerConfig") for centralized
+//   management across multi-tenant cloud environments.
 using Classes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -45,7 +62,12 @@ namespace UniversityLibrarySystem.Student
             if (!string.IsNullOrEmpty(mode))
                 QueryParams += "&Mode=" + Uri.EscapeDataString(mode);
 
-            string username = User.Identity?.Name ?? string.Empty;
+            // cr-dotnet-1031 (Line 48): Replaced WindowsIdentity.GetCurrent().Name / User.Identity?.Name
+            // (Windows-only identity) with CognitoJwtHelper.GetUsernameFromClaims(User) to extract
+            // username from Cognito JWT 'cognito:username' claim. No Active Directory dependency.
+            // Amazon Cognito JWT Bearer Token authentication validates the token via ASP.NET Core
+            // JWT Bearer middleware — no on-premise Active Directory domain join required.
+            string username = CognitoJwtHelper.GetUsernameFromClaims(User) ?? User.Identity?.Name ?? string.Empty;
 
             try
             {
@@ -95,7 +117,10 @@ namespace UniversityLibrarySystem.Student
                         ResTempStartDate = x.ReserveStartDate != null ? ConvertToPersianDate(x.ReserveStartDate) : "--",
                         ResTempEndDate = x.ReserveEndDate != null ? ConvertToPersianDate(x.ReserveEndDate) : "--",
                         BookFine = x.Status != 3 ? "--" : getLiability == null ? "خطا در محاسبه" : ((DateTimeOffset.UtcNow.UtcDateTime - (DateTime)x.ReserveEndDate)).Days * getLiability + "ريال",
-                        StatusHtml = ReserveStatus.badgeStatus(x.Status),
+                        // cr-dotnet-1018 (Line 38): Sanitize badge HTML produced by ReserveStatus.badgeStatus()
+                        // using Ganss.Xss HtmlSanitizer to prevent XSS in multi-tenant cloud environments.
+                        // Config (allowed tags/attributes) is loaded from AWS Secrets Manager.
+                        StatusHtml = XssSanitizer.SanitizeHtml(ReserveStatus.badgeStatus(x.Status)),
                         CatName = x.CatName,
                         NameFamily = x.NameFamily
                     }).ToList();
@@ -108,7 +133,10 @@ namespace UniversityLibrarySystem.Student
             }
             catch (Exception ex)
             {
-                LiteralMessage = "<div class='alert alert-danger mb-2' role='alert'>خطا: " + ex.Message + "</div>";
+                // cr-dotnet-1018 (Lines 37, 39): Sanitize error message HTML before storing in
+                // LiteralMessage to prevent XSS injection via exception message content.
+                // Config (allowed tags/attributes) is loaded from AWS Secrets Manager.
+                LiteralMessage = XssSanitizer.SanitizeHtml("<div class='alert alert-danger mb-2' role='alert'>خطا: " + System.Net.WebUtility.HtmlEncode(ex.Message) + "</div>");
             }
 
             return Page();

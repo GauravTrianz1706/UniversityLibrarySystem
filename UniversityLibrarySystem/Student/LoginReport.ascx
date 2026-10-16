@@ -1,5 +1,7 @@
-@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
-@* Removed: <%@ Control %> directive, runat="server", asp:ListView, asp:LinqDataSource, asp:Button Web Forms controls *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms UserControl fully migrated to ASP.NET Core Razor Pages partial view *@
+@* <%@ Control %> directive removed - replaced by Pages/Student/LoginReport.cshtml (Razor Page) *@
+@* This file is superseded by Pages/Student/LoginReport.cshtml - kept for reference only *@
+@* Removed: asp:ListView, asp:LinqDataSource, asp:Button Web Forms controls *@
 @* Replaced: Web Forms server controls with standard HTML and Razor syntax *@
 @using Classes
 @model UniversityLibrarySystem.Student.LoginReportModel

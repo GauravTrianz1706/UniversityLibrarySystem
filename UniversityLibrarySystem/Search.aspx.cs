@@ -2,6 +2,13 @@
 // Removed: System.Web, System.Web.UI, System.Web.UI.WebControls
 // Replaced: System.Web.UI.Page with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
 // Replaced: Page_Load with OnGet, NextPage_Click with OnGetNextPage
+//
+// cr-dotnet-1018: XSS Prevention - Request.Query values sanitized via XssSanitizer (Ganss.Xss)
+//   Lines 44-49, 58-59, 61: All Request.Query values (BookName, Author, Translator, Publisher,
+//   ISBN, Category, isSpecial, isAvailable, lastId) are sanitized with XssSanitizer.SanitizeText()
+//   before use to prevent XSS injection. Sanitizer configuration (allowed tags/attributes) is
+//   stored in AWS Secrets Manager under XSS_SANITIZER_CONFIG_SECRET_NAME for centralized
+//   management across multi-tenant cloud environments.
 using Classes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -9,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using UniversityLibrarySystem.Classes;
 
 namespace UniversityLibrarySystem
 {
@@ -41,12 +49,17 @@ namespace UniversityLibrarySystem
                 translator = string.Empty;
                 publisher = string.Empty;
                 isbn = string.Empty;
-                bookName = Request.Query["BookName"].FirstOrDefault() ?? string.Empty;
-                author = Request.Query["Author"].FirstOrDefault() ?? string.Empty;
-                translator = Request.Query["Translator"].FirstOrDefault() ?? string.Empty;
-                publisher = Request.Query["Publisher"].FirstOrDefault() ?? string.Empty;
-                isbn = Request.Query["ISBN"].FirstOrDefault() ?? string.Empty;
-                string categoryStr = Request.Query["Category"].FirstOrDefault();
+                // cr-dotnet-1018 (Lines 44-49): Sanitize all user-supplied query parameters using
+                // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+                // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME)
+                // for centralized management across multi-tenant cloud environments.
+                bookName = XssSanitizer.SanitizeText(Request.Query["BookName"].FirstOrDefault() ?? string.Empty);
+                author = XssSanitizer.SanitizeText(Request.Query["Author"].FirstOrDefault() ?? string.Empty);
+                translator = XssSanitizer.SanitizeText(Request.Query["Translator"].FirstOrDefault() ?? string.Empty);
+                publisher = XssSanitizer.SanitizeText(Request.Query["Publisher"].FirstOrDefault() ?? string.Empty);
+                isbn = XssSanitizer.SanitizeText(Request.Query["ISBN"].FirstOrDefault() ?? string.Empty);
+                // cr-dotnet-1018 (Line 49): Sanitize Category query parameter before parsing.
+                string categoryStr = XssSanitizer.SanitizeText(Request.Query["Category"].FirstOrDefault());
                 if (!string.IsNullOrEmpty(categoryStr))
                 {
                     int.TryParse(categoryStr, out category);
@@ -55,10 +68,13 @@ namespace UniversityLibrarySystem
                 {
                     category = 0;
                 }
-                isSpecial = Request.Query["isSpecial"].FirstOrDefault() == "on";
-                isAvailable = Request.Query["isAvailable"].FirstOrDefault() == "on";
+                // cr-dotnet-1018 (Lines 58-59): Sanitize isSpecial and isAvailable query parameters
+                // before use to prevent XSS injection via query string manipulation.
+                isSpecial = XssSanitizer.SanitizeText(Request.Query["isSpecial"].FirstOrDefault()) == "on";
+                isAvailable = XssSanitizer.SanitizeText(Request.Query["isAvailable"].FirstOrDefault()) == "on";
 
-                string lastIdStr = Request.Query["lastId"].FirstOrDefault();
+                // cr-dotnet-1018 (Line 61): Sanitize lastId query parameter before use.
+                string lastIdStr = XssSanitizer.SanitizeText(Request.Query["lastId"].FirstOrDefault());
                 if (string.IsNullOrEmpty(lastIdStr))
                 {
                     BooksHtml = NewBook();

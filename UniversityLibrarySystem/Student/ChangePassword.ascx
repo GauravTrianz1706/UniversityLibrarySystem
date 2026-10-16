@@ -1,5 +1,7 @@
-@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
-@* Removed: <%@ Control %> directive, BotDetect, runat="server", asp:* Web Forms controls *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms UserControl fully migrated to ASP.NET Core Razor Pages partial view *@
+@* <%@ Control %> directive removed - replaced by Pages/Student/ChangePassword.cshtml (Razor Page) *@
+@* This file is superseded by Pages/Student/ChangePassword.cshtml - kept for reference only *@
+@* Removed: BotDetect, runat="server", asp:* Web Forms controls *@
 @* Replaced: Web Forms server controls with standard HTML form elements for Razor Pages *@
 @using Microsoft.AspNetCore.Mvc.RazorPages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers

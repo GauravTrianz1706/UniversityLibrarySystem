@@ -1,0 +1,230 @@
+@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
+@* Rule cr-dotnet-0026: Web Forms Usage - Replaced <%@ Control %> directive, runat="server", asp:MultiView, asp:ListView, asp:LinqDataSource, asp:DataPager *@
+@* Replaced: Web Forms server controls with standard HTML and Razor syntax *@
+@model UniversityLibrarySystem.Manager.ManagerPageModel
+<style>
+    #manager-profile-img {
+        border-radius: 0.25rem;
+    }
+</style>
+
+<script type="text/javascript">
+    function previewFile() {
+        var preview = document.querySelector('#manager-profile-img');
+        var file = document.querySelector('#fileUploadPic').files[0];
+        var reader = new FileReader();
+
+        reader.onloadend = function () {
+            preview.src = reader.result;
+        }
+
+        if (file) {
+            reader.readAsDataURL(file);
+        } else {
+            preview.src = "../img/users/no-photo.png";
+        }
+    }
+</script>
+<style>
+    .activepage {
+        line-height: 2;
+        text-align: center;
+        min-width: calc( 2.0075rem + 0px );
+        border-color: #00cfdd;
+        background-color: #00cfdd;
+        color: #fff;
+        box-shadow: 0 0.125rem 0.25rem rgba(147, 158, 170, 0.4);
+        border-top-right-radius: 0.25rem;
+        border-bottom-right-radius: 0.25rem;
+        border-top-left-radius: 0.25rem;
+        border-bottom-left-radius: 0.25rem;
+    }
+
+    .noactivepage {
+        border-top-right-radius: 0.25rem;
+        border-bottom-right-radius: 0.25rem;
+        border-top-left-radius: 0.25rem;
+        border-bottom-left-radius: 0.25rem;
+    }
+</style>
+<div class="content-wrapper">
+    <!-- Content -->
+    <div class="container-xxl flex-grow-1 container-p-y">
+        <h4 class="py-3 breadcrumb-wrapper mb-4">مدیریت مدیران</h4>
+        <div class="mb-0 py-1">
+            @if (Model.ShowSearch)
+            {
+                <div>
+                    @Html.Raw(Model.SearchLiteral)
+                    <form action="Manager" method="get">
+                        <div class="row">
+                            <div class="col-12" style="display: block ruby;">
+                                <div class="col-5 py-1">
+                                    <input id="txtName" name="txtName" type="text" class="form-control" placeholder="نام و نام خانوادگی">
+                                </div>
+                                <div class="col-5 py-1">
+                                    <button type="submit" class="btn btn-success"><i class="bx bx-search-alt-2"></i>&nbsp;جستجو</button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            }
+            <form action="Manager" method="get">
+                <input id="Text1" name="Value" value="New" hidden="hidden" type="text" />
+                @if (Model.ShowAddButton)
+                {
+                    <button type="submit" class="btn btn-primary my-2"><i class="bx bx-plus"></i>&nbsp;درج جدید</button>
+                }
+                <br />
+                @Html.Raw(Model.Message)
+            </form>
+        </div>
+
+        @if (Model.ShowList)
+        {
+            <!-- Striped Rows -->
+            <div class="card">
+                <div class="table-responsive text-nowrap">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>درج کننده</th>
+                                <th>تصویر پروفایل</th>
+                                <th>نام و نام خانوادگی</th>
+                                <th>موبایل</th>
+                                <th>وضعیت</th>
+                                <th>تاریخ درج</th>
+                                <th>عمل‌ها</th>
+                            </tr>
+                        </thead>
+                        <tbody class="table-border-bottom-0 text-nowrap">
+                            @foreach (var item in Model.ManagerItems)
+                            {
+                                <tr>
+                                    <td>
+                                        <ul class="list-unstyled users-list m-0 avatar-group d-flex align-items-center">
+                                            <li data-bs-toggle="tooltip" data-popup="tooltip-custom" data-bs-placement="top" class="avatar avatar-xs pull-up" title="" data-bs-original-title="@item.NameFamily">
+                                                <img src="../img/users/@item.AdderPic" style="min-width: 26px;" alt="Avatar" class="rounded-circle">
+                                            </li>
+                                            <a style="color: #000;" href="./Manager?Edit=@item.UserIdHash">@item.NameFamily</a>
+                                        </ul>
+                                    </td>
+                                    <td>
+                                        <div class="avatar avatar-xl">
+                                            <a class="example-image-link" href="../img/users/@item.Pic"
+                                               data-lightbox="MainCategory@item.ID" data-title="تصویر مشاور @item.FullName با کد @item.ID">
+                                                <img class="example-image rounded-circle" onerror="this.src='../img/users/no-photo.png'"
+                                                     src="../img/users/@item.Pic" alt="@item.FullName" />
+                                            </a>
+                                        </div>
+                                    </td>
+                                    <td>@item.FullName</td>
+                                    <td>@item.Mobile</td>
+                                    @Html.Raw(item.StatusHtml)
+                                    <td>@item.DateInsert.ToShortDateString()</td>
+                                    <td>
+                                        <div class="dropdown">
+                                            <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown">
+                                                <i class="bx bx-dots-vertical-rounded"></i>
+                                            </button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="./Manager?Edit=@item.IdHash"><i class="bx bx-edit-alt me-1"></i>ویرایش</a>
+                                                <a class="dropdown-item" href="./Manager?Reset=@item.IdHash"><i class="bx bx-lock-open-alt me-1"></i>لغو قفل حساب کاربری</a>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!--/ Striped Rows -->
+            <script>
+                function setUrl() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    var txtText = urlParams.get("txtName")
+                    if (txtText) {
+                        document.getElementById("txtName").value = txtText;
+                    }
+                }
+                setUrl();
+                function clearUrlParams() {
+                    var currentUrl = window.location.href;
+                    var baseUrl = currentUrl.split('?')[0];
+                    window.history.replaceState(null, null, baseUrl);
+                }
+                clearUrlParams();
+            </script>
+        }
+
+        @if (Model.ShowForm)
+        {
+            <form method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="col-12">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            @if (!string.IsNullOrEmpty(Model.OnlineStatus))
+                            {
+                                <span class="badge @Model.OnlineStatusCss">@Model.OnlineStatus</span>
+                            }
+                            <div class="row">
+                                <img id="manager-profile-img" src="@Model.ProfileImageUrl" height="225" width="225" />
+                                <br />
+                                <hr />
+                                <div class="col-xl-12 col-md-12 col-sm-12 mb-4">
+                                    <label class="form-label">تصویر</label>
+                                    <div class="col-12">
+                                        <input type="file" id="fileUploadPic" name="fileUploadPic" accept="image/*" onchange="previewFile()" class="form-control" />
+                                    </div>
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-sm-12 mb-4">
+                                    <label class="form-label">نام و نام خانوادگی</label>
+                                    <div class="input-group input-group-merge">
+                                        <input type="text" id="txtFullName" name="txtFullName" value="@Model.EditFullName" class="form-control credit-card-mask text-start" dir="ltr" placeholder="نام" required>
+                                    </div>
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-sm-12 mb-4">
+                                    <label class="form-label">نام کاربری</label>
+                                    <input type="text" id="txtUserName" name="txtUserName" value="@Model.EditUserName" class="form-control date-mask text-start" dir="ltr" placeholder="نام کاربری" @(Model.IsEdit ? "readonly" : "") required>
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-sm-12 mb-4">
+                                    <label class="form-label">کلمه عبور</label>
+                                    <input type="password" id="txtPassword" name="txtPassword" class="form-control time-mask text-start" dir="ltr" placeholder="کلمه عبور" @(Model.IsEdit ? "" : "required") minlength="8">
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-sm-12 mb-4">
+                                    <label class="form-label">شماره موبایل</label>
+                                    <input type="text" id="txtMobile" name="txtMobile" value="@Model.EditMobile" class="form-control numeral-mask text-start" dir="ltr" placeholder="شماره موبایل" required>
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-sm-12 mb-4">
+                                    <label class="form-label">ایمیل</label>
+                                    <input type="email" id="txtEmail" name="txtEmail" value="@Model.EditEmail" class="form-control block-mask text-start" dir="ltr" placeholder="ایمیل" required>
+                                </div>
+                                <div class="col-xl-4 col-md-6 col-sm-12 mb-4 mb">
+                                    <label class="form-label">وضعیت</label>
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="chkStatus" name="chkStatus" @(Model.EditStatus ? "checked" : "")>
+                                        <label class="form-check-label" for="chkStatus">وضعیت</label>
+                                    </div>
+                                </div>
+                                <hr class="my-4 mx-n4">
+                                <div class="pt-4">
+                                    <button type="submit" name="action" value="save" class="btn btn-primary me-sm-3 me-1">ثبت</button>
+                                    @if (Model.IsEdit)
+                                    {
+                                        <button type="submit" name="action" value="delete" class="btn btn-danger me-sm-3 me-1">حذف حساب</button>
+                                    }
+                                    <a href="./Manager" class="btn btn-label-secondary">بازگشت</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        }
+    </div>
+    <!-- / Content -->
+    <div class="content-backdrop fade"></div>
+</div>

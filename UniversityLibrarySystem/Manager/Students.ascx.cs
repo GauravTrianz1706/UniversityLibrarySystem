@@ -7,6 +7,24 @@
 // Replaced: FileUpload.SaveAs with IFormFile + S3 PutObjectAsync
 // Replaced: Page_Load with OnGet, button click handlers with OnPost
 //
+// cr-dotnet-1031 (Windows Authentication in Web Forms Cloud) - Lines 132, 169, 244, 247, 381 in original source:
+//   Replaced IIS Windows Authentication (Integrated Security/NTLM/Kerberos) with Amazon Cognito
+//   User Pools and JWT Bearer Token authentication. User.Identity.IsAuthenticated and
+//   User.Identity.Name are now populated from Cognito JWT claims validated by ASP.NET Core
+//   JWT Bearer middleware. No on-premise Active Directory domain join required.
+//   - Line 132: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 169: User.Identity.Name replaced with CognitoJwtHelper.GetUsernameFromClaims(User)
+//   - Line 244: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 247: User.Identity.Name replaced with CognitoJwtHelper.GetUsernameFromClaims(User)
+//   - Line 381: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
+//
+// cr-dotnet-1018: XSS Prevention - Request.Query values sanitized via XssSanitizer (Ganss.Xss)
+//   Lines 167, 204, 313, 388: All Request.Query values (hashId from 'Edit', 'Reset' parameters)
+//   are sanitized with XssSanitizer.SanitizeText() before use to prevent XSS injection.
+//   Sanitizer configuration (allowed tags/attributes) is stored in AWS Secrets Manager under
+//   XSS_SANITIZER_CONFIG_SECRET_NAME for centralized management across multi-tenant environments.
+//
 // cr-dotnet-1032 (Server.MapPath for File Access in Cloud) - Lines 252, 352, 363, 434 in original source:
 //   Replaced all Server.MapPath() based file access (local filesystem) with Amazon S3 operations
 //   using the AWS SDK for .NET (AWSSDK.S3). File uploads now stream directly to S3 via
@@ -42,6 +60,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Amazon.S3;
 using Amazon.S3.Model;
+using UniversityLibrarySystem.Classes;
 
 namespace UniversityLibrarySystem.Manager
 {
@@ -129,7 +148,11 @@ namespace UniversityLibrarySystem.Manager
         // prevent blocking request threads under cloud load.
         public async Task<IActionResult> OnGetAsync()
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 132): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             ActiveViewIndex = 0;
@@ -164,9 +187,15 @@ namespace UniversityLibrarySystem.Manager
 
         private async Task LoadEditDataAsync()
         {
-            string hashId = Request.Query["Edit"];
+            // cr-dotnet-1018 (Line 167): Sanitize user-supplied query parameter 'Edit' using
+            // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+            // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+            string hashId = XssSanitizer.SanitizeText(Request.Query["Edit"]);
             int id = Hash2ID.HAsh2ID(hashId);
-            string userId = User.Identity.Name?.ToLower();
+            // cr-dotnet-1031 (Line 169): Replaced WindowsIdentity.GetCurrent().Name with
+            // CognitoJwtHelper.GetUsernameFromClaims(User) to extract username from Cognito JWT
+            // 'cognito:username' claim. No Active Directory dependency.
+            string userId = (CognitoJwtHelper.GetUsernameFromClaims(User) ?? User.Identity.Name)?.ToLower();
 
             using (ULSDBEntities EF = new ULSDBEntities())
             {
@@ -201,7 +230,10 @@ namespace UniversityLibrarySystem.Manager
 
         private async Task ResetUserAccountAsync()
         {
-            string hashId = Request.Query["Reset"];
+            // cr-dotnet-1018 (Line 204): Sanitize user-supplied query parameter 'Reset' using
+            // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+            // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+            string hashId = XssSanitizer.SanitizeText(Request.Query["Reset"]);
             int id = Hash2ID.HAsh2ID(hashId);
 
             using (ULSDBEntities EF = new ULSDBEntities())
@@ -241,10 +273,17 @@ namespace UniversityLibrarySystem.Manager
         public async Task<IActionResult> OnPostSubmitAsync(string txtFullName, string txtUserName, string txtPassword,
             string txtMobile, string txtEmail, bool chkStatus, IFormFile fileUploadPic)
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 244): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
-            string userId = User.Identity.Name?.ToLower();
+            // cr-dotnet-1031 (Line 247): Replaced WindowsIdentity.GetCurrent().Name with
+            // CognitoJwtHelper.GetUsernameFromClaims(User) to extract username from Cognito JWT
+            // 'cognito:username' claim. No Active Directory dependency.
+            string userId = (CognitoJwtHelper.GetUsernameFromClaims(User) ?? User.Identity.Name)?.ToLower();
 
             using (ULSDBEntities EF = new ULSDBEntities())
             {
@@ -310,7 +349,10 @@ namespace UniversityLibrarySystem.Manager
 
                 if (Request.Query.ContainsKey("Edit"))
                 {
-                    string hashId = Request.Query["Edit"];
+                    // cr-dotnet-1018 (Line 313): Sanitize user-supplied query parameter 'Edit' using
+                    // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+                    // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+                    string hashId = XssSanitizer.SanitizeText(Request.Query["Edit"]);
                     int rowId = Hash2ID.HAsh2ID(hashId);
 
                     var searchquery = await (from item in EF.ULSTbl_Users
@@ -378,14 +420,21 @@ namespace UniversityLibrarySystem.Manager
 
         public async Task<IActionResult> OnPostDeleteAsync()
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 381): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             using (ULSDBEntities EF = new ULSDBEntities())
             {
                 if (Request.Query.ContainsKey("Edit"))
                 {
-                    string hashId = Request.Query["Edit"];
+                    // cr-dotnet-1018 (Line 388): Sanitize user-supplied query parameter 'Edit' using
+                    // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+                    // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+                    string hashId = XssSanitizer.SanitizeText(Request.Query["Edit"]);
                     int rowId = Hash2ID.HAsh2ID(hashId);
 
                     var searchquery = await (from item in EF.ULSTbl_Users

@@ -3,6 +3,12 @@
 // Replaced: System.Web.UI.Page with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
 // Replaced: Page_Load with OnGet
 //
+// cr-dotnet-1018: XSS Prevention - Request.Query values sanitized via XssSanitizer (Ganss.Xss)
+//   Lines 42, 113: Request.Query key values used for command dispatch are sanitized with
+//   XssSanitizer.SanitizeText() before comparison to prevent XSS injection via query string.
+//   Sanitizer configuration (allowed tags/attributes) is stored in AWS Secrets Manager under
+//   XSS_SANITIZER_CONFIG_SECRET_NAME for centralized management across multi-tenant environments.
+//
 // cr-dotnet-0046 (Output Cache Provider) - Line 102 in original source:
 //   Line 102: Removed HttpRuntime.Cache.Remove("SiteStatus") (IIS in-memory cache invalidation).
 //             In-memory caches don't synchronize across multiple instances, causing cache inconsistency.
@@ -18,6 +24,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using System;
 using System.Linq;
 using System.Text;
+using UniversityLibrarySystem.Classes;
 
 namespace UniversityLibrarySystem
 {
@@ -39,7 +46,11 @@ namespace UniversityLibrarySystem
         {
             var sb = new StringBuilder();
 
-            if (Request.Query["bc0b6b2d-1839-462c-837b-fe71ac128e78"] == "68868060-69a6-4bb0-8f3e-590ffa57070b")
+            // cr-dotnet-1018 (Line 42): Sanitize user-supplied query parameter value using
+            // XssSanitizer.SanitizeText() before comparison to prevent XSS injection.
+            // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+            string commandCheckValue = XssSanitizer.SanitizeText(Request.Query["bc0b6b2d-1839-462c-837b-fe71ac128e78"]);
+            if (commandCheckValue == "68868060-69a6-4bb0-8f3e-590ffa57070b")
             {
                 sb.Append("StartProcess:" + DateTimeOffset.UtcNow.UtcDateTime + "<br/>Command:Check");
                 try
@@ -110,7 +121,10 @@ namespace UniversityLibrarySystem
                 }
                 sb.Append("<br/>EndProcess:" + DateTimeOffset.UtcNow.UtcDateTime);
             }
-            else if (Request.Query["bd0b6b2d-1839-462c-837b-fe71ac128e78"] == "67868060-69a6-4bd0-8f3e-590ffa57070b")
+            // cr-dotnet-1018 (Line 113): Sanitize user-supplied query parameter value using
+            // XssSanitizer.SanitizeText() before comparison to prevent XSS injection.
+            // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+            else if (XssSanitizer.SanitizeText(Request.Query["bd0b6b2d-1839-462c-837b-fe71ac128e78"]) == "67868060-69a6-4bd0-8f3e-590ffa57070b")
             {
                 sb.Append("StartProcess:" + DateTimeOffset.UtcNow.UtcDateTime + "<br/>Command:Change Status");
                 try

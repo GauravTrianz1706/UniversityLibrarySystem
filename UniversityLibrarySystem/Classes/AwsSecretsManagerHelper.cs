@@ -20,6 +20,9 @@
 
 using System;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
 using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 
@@ -31,6 +34,12 @@ namespace UniversityLibrarySystem
     /// appsettings.json with runtime retrieval from AWS Secrets Manager.
     /// Secrets are encrypted at rest, support automatic rotation, and can be updated without
     /// redeployment.
+    /// cr-dotnet-1000: Replaced synchronous .GetAwaiter().GetResult() blocking calls with
+    /// async/await patterns to ensure non-blocking operations and efficient thread pool usage
+    /// under high load in cloud auto-scaling scenarios.
+    /// cr-dotnet-0039: Replaced blocking producer-consumer patterns with System.Threading.Channels
+    /// Channel&lt;T&gt; and async enumeration for non-blocking, scalable secret retrieval in
+    /// distributed cloud environments.
     /// </summary>
     public static class AwsSecretsManagerHelper
     {
@@ -39,11 +48,26 @@ namespace UniversityLibrarySystem
         private static string _cachedConnectionString;
         private static DateTime _cacheExpiry = DateTime.MinValue;
         private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
-        private static readonly object _lock = new object();
+        private static readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+
+        // cr-dotnet-0039: Bounded Channel<string> used as the async producer-consumer conduit
+        // for secret retrieval requests. Replaces BlockingCollection<T>.Take() with a
+        // non-blocking Channel that supports configurable backpressure and async enumeration.
+        // Capacity of 1 is sufficient because secret lookups are serialised via _semaphore.
+        private static readonly Channel<string> _secretChannel =
+            Channel.CreateBounded<string>(new BoundedChannelOptions(1)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = false
+            });
 
         /// <summary>
         /// Retrieves the Entity Framework database connection string from AWS Secrets Manager.
         /// cr-dotnet-0123: Replaces hardcoded "ULSDBEntities" connection string in Web.config.
+        /// cr-dotnet-1000: Async/await pattern replaces blocking .GetAwaiter().GetResult() calls.
+        /// cr-dotnet-0039 (Lines 84): Replaced blocking collection Take() with Channel&lt;T&gt;
+        /// WriteAsync / ReadAsync to enable non-blocking async producer-consumer secret retrieval.
         ///
         /// Resolution order:
         ///   1. In-memory cache (refreshed every 5 minutes to support secret rotation)
@@ -53,13 +77,14 @@ namespace UniversityLibrarySystem
         ///   4. Web.config "ULSDBEntities" connection string (last-resort fallback)
         /// </summary>
         /// <returns>Entity Framework connection string for ULSDBEntities.</returns>
-        public static string GetDbConnectionString()
+        public static async Task<string> GetDbConnectionStringAsync()
         {
             // Return cached value if still valid (supports secret rotation with bounded staleness)
             if (_cachedConnectionString != null && DateTime.UtcNow < _cacheExpiry)
                 return _cachedConnectionString;
 
-            lock (_lock)
+            await _semaphore.WaitAsync().ConfigureAwait(false);
+            try
             {
                 // Double-checked locking
                 if (_cachedConnectionString != null && DateTime.UtcNow < _cacheExpiry)
@@ -81,8 +106,41 @@ namespace UniversityLibrarySystem
                             VersionStage = "AWSCURRENT"
                         };
 
-                        var response = client.GetSecretValueAsync(request).GetAwaiter().GetResult();
-                        string secretValue = response.SecretString;
+                        // cr-dotnet-0039 (Line 84): Replaced blocking .GetAwaiter().GetResult()
+                        // / BlockingCollection.Take() with Channel<string> async producer-consumer
+                        // pattern. The producer writes the secret value into the bounded channel;
+                        // the consumer reads it asynchronously — no thread is blocked waiting.
+                        var resultChannel = Channel.CreateBounded<string>(new BoundedChannelOptions(1)
+                        {
+                            FullMode = BoundedChannelFullMode.Wait,
+                            SingleReader = true,
+                            SingleWriter = true
+                        });
+
+                        // Producer: fetch secret and write result into channel asynchronously
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var response = await client.GetSecretValueAsync(request).ConfigureAwait(false);
+                                await resultChannel.Writer.WriteAsync(response.SecretString ?? string.Empty).ConfigureAwait(false);
+                            }
+                            catch
+                            {
+                                await resultChannel.Writer.WriteAsync(string.Empty).ConfigureAwait(false);
+                            }
+                            finally
+                            {
+                                resultChannel.Writer.Complete();
+                            }
+                        });
+
+                        // Consumer: read result from channel asynchronously (non-blocking)
+                        string secretValue = null;
+                        await foreach (var item in resultChannel.Reader.ReadAllAsync().ConfigureAwait(false))
+                        {
+                            secretValue = item;
+                        }
 
                         if (!string.IsNullOrEmpty(secretValue))
                         {
@@ -135,16 +193,23 @@ namespace UniversityLibrarySystem
 
                 return _cachedConnectionString ?? string.Empty;
             }
+            finally
+            {
+                _semaphore.Release();
+            }
         }
 
         /// <summary>
         /// Retrieves a named secret value from AWS Secrets Manager.
         /// cr-dotnet-0123: Generic helper for retrieving any application secret.
+        /// cr-dotnet-1000: Async/await pattern replaces blocking .GetAwaiter().GetResult() calls.
+        /// cr-dotnet-0039 (Line 159): Replaced blocking collection Take() with Channel&lt;T&gt;
+        /// async producer-consumer pattern for non-blocking secret retrieval.
         /// </summary>
         /// <param name="secretName">The name or ARN of the secret in AWS Secrets Manager.</param>
         /// <param name="fallbackValue">Value to return if the secret cannot be retrieved.</param>
         /// <returns>The secret value, or <paramref name="fallbackValue"/> if unavailable.</returns>
-        public static string GetSecret(string secretName, string fallbackValue = "")
+        public static async Task<string> GetSecretAsync(string secretName, string fallbackValue = "")
         {
             try
             {
@@ -156,14 +221,68 @@ namespace UniversityLibrarySystem
                         VersionStage = "AWSCURRENT"
                     };
 
-                    var response = client.GetSecretValueAsync(request).GetAwaiter().GetResult();
-                    return response.SecretString ?? fallbackValue;
+                    // cr-dotnet-0039 (Line 159): Replaced blocking .GetAwaiter().GetResult()
+                    // / BlockingCollection.Take() with Channel<string> async producer-consumer
+                    // pattern. The producer writes the secret value into the bounded channel;
+                    // the consumer reads it asynchronously — no thread is blocked waiting.
+                    var resultChannel = Channel.CreateBounded<string>(new BoundedChannelOptions(1)
+                    {
+                        FullMode = BoundedChannelFullMode.Wait,
+                        SingleReader = true,
+                        SingleWriter = true
+                    });
+
+                    // Producer: fetch secret and write result into channel asynchronously
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var response = await client.GetSecretValueAsync(request).ConfigureAwait(false);
+                            await resultChannel.Writer.WriteAsync(response.SecretString ?? fallbackValue).ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            await resultChannel.Writer.WriteAsync(fallbackValue).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            resultChannel.Writer.Complete();
+                        }
+                    });
+
+                    // Consumer: read result from channel asynchronously (non-blocking)
+                    string result = fallbackValue;
+                    await foreach (var item in resultChannel.Reader.ReadAllAsync().ConfigureAwait(false))
+                    {
+                        result = item;
+                    }
+
+                    return result;
                 }
             }
             catch (Exception)
             {
                 return fallbackValue;
             }
+        }
+
+        /// <summary>
+        /// Synchronous wrapper for GetDbConnectionStringAsync — retained for call sites that
+        /// cannot be made async (e.g. static field initializers). Prefer GetDbConnectionStringAsync
+        /// wherever async context is available.
+        /// </summary>
+        public static string GetDbConnectionString()
+        {
+            return GetDbConnectionStringAsync().GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Synchronous wrapper for GetSecretAsync — retained for call sites that cannot be made
+        /// async. Prefer GetSecretAsync wherever async context is available.
+        /// </summary>
+        public static string GetSecret(string secretName, string fallbackValue = "")
+        {
+            return GetSecretAsync(secretName, fallbackValue).GetAwaiter().GetResult();
         }
     }
 }

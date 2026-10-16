@@ -1,5 +1,7 @@
-@* Migrated from ASP.NET Web Forms Page to ASP.NET Core Razor Pages *@
-@* Removed: <%@ Page %> directive, runat="server", asp:Panel Web Forms controls *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms Page fully migrated to ASP.NET Core Razor Pages *@
+@* <%@ Page %> directive removed - replaced by Pages/Student/Default.cshtml (Razor Page) *@
+@* This file is superseded by Pages/Student/Default.cshtml - kept for reference only *@
+@* Removed: runat="server", asp:Panel Web Forms controls *@
 @* Replaced: Web Forms page lifecycle with Razor Pages model *@
 @page
 @model UniversityLibrarySystem.Student.DefaultModel

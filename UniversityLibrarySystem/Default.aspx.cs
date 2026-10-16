@@ -28,10 +28,19 @@
 //            connection string → replaced with AwsSecretsManagerHelper.GetDbConnectionString()
 //   Line 49: const string cacheKey = "CategoriesBookHScrollCacheKey" — same pattern → same fix
 //   Line 76: const string cacheKey = "NewBookCacheKey" — same pattern → same fix
+//
+// cr-dotnet-1003: Razor Pages Without Output Caching
+// Line 61 in original source: DefaultModel.OnGet() had no output caching — every request
+// triggered a full server-side render even for cacheable content.
+// Added [OutputCache(PolicyName = "DefaultOutputCache")] to OnGet(), delegating cache storage
+// to AWS ElastiCache Redis via the "DefaultOutputCache" policy registered in Program.cs with
+// AddStackExchangeRedisOutputCache(). Reduces redundant rendering and CPU usage under cloud
+// auto-scaling, lowering EC2/ECS compute costs.
 
 using Classes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.Extensions.Caching.Distributed;
 using System;
 using System.Linq;
@@ -41,6 +50,9 @@ namespace UniversityLibrarySystem
     // cr-dotnet-0046: Migrated from ASP.NET Web Forms (System.Web.UI.Page) to ASP.NET Core Razor Pages (PageModel).
     // Cache replaced from in-memory HttpRuntime.Cache to IDistributedCache backed by Amazon ElastiCache Redis.
     // cr-dotnet-0123: Database connection string retrieved from AWS Secrets Manager at runtime.
+    // cr-dotnet-1003: [OutputCache] attribute added — responses are cached in AWS ElastiCache Redis
+    // via the "DefaultOutputCache" policy registered in Program.cs with
+    // AddStackExchangeRedisOutputCache(). Reduces redundant rendering under cloud auto-scaling.
     public class DefaultModel : PageModel
     {
         // cr-dotnet-0046: IDistributedCache injected via ASP.NET Core DI.
@@ -58,6 +70,10 @@ namespace UniversityLibrarySystem
         public string CategoriesHtml { get; set; } = "";
         public string NewBooksHtml { get; set; } = "";
 
+        // cr-dotnet-1003: [OutputCache] attribute added to cache the rendered page response in
+        // AWS ElastiCache Redis via the "DefaultOutputCache" policy. Reduces redundant server-side
+        // rendering and CPU usage under cloud auto-scaling, lowering EC2/ECS compute costs.
+        [OutputCache(PolicyName = "DefaultOutputCache")]
         public void OnGet()
         {
             ViewData["Title"] = SiteConfig.getSiteName();

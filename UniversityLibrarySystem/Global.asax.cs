@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using WebOptimizer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -129,6 +130,91 @@ namespace UniversityLibrarySystem
             services.AddRazorPages();
             services.AddControllersWithViews();
 
+            // cr-dotnet-1011: Unoptimized Frontend Bundles in Cloud
+            // Implemented LigerShark WebOptimizer to bundle and minify CSS/JS assets.
+            // Unminified CSS/JS bundles served directly from wwwroot increase cloud bandwidth
+            // costs and load times. WebOptimizer produces optimized, content-hashed bundles
+            // that are delivered via AWS CloudFront CDN to reduce egress costs and improve
+            // performance at edge locations globally.
+            //
+            // Bundle strategy:
+            //   - CSS bundles: All site CSS files concatenated and minified into /css/site.min.css
+            //     and admin panel CSS into /css/admin.min.css. Content-hash appended to filename
+            //     for cache-busting (e.g., /css/site.min.abc123.css).
+            //   - JS bundles: All site JS files concatenated and minified into /js/site.min.js
+            //     and admin panel JS into /js/admin.min.js. Content-hash appended to filename.
+            //   - EnableTagHelperBundling: true — Razor tag helpers automatically reference
+            //     the bundled/minified output URLs with content-hash fingerprints.
+            //   - EnableCaching: true — Bundles are cached in memory after first generation,
+            //     reducing CPU overhead on subsequent requests.
+            //
+            // AWS CloudFront integration:
+            //   WebOptimizer appends a content-hash query string / fingerprint to bundle URLs
+            //   (e.g., /css/site.min.css?v=abc123). CloudFront caches these versioned URLs
+            //   indefinitely (Cache-Control: public, max-age=31536000, immutable set by
+            //   UseStaticFiles OnPrepareResponse below). When assets change, the hash changes,
+            //   causing CloudFront to fetch the new bundle from origin automatically.
+            //   Set CLOUDFRONT_DISTRIBUTION_ID environment variable for programmatic invalidation.
+            services.AddWebOptimizer(pipeline =>
+            {
+                // CSS bundles — minify and concatenate all site stylesheets
+                pipeline.AddCssBundle("/css/site.min.css",
+                    "css/animate.min.css",
+                    "css/bootstrap.min.css",
+                    "css/fontawesome-all.min.css",
+                    "css/magnific-popup.css",
+                    "css/nice-select.css",
+                    "css/nouislider.min.css",
+                    "css/owl.carousel.min.css",
+                    "css/slick.css",
+                    "css/slicknav.css",
+                    "css/style.css",
+                    "css/themify-icons.css");
+
+                // Admin panel CSS bundle
+                pipeline.AddCssBundle("/css/admin.min.css",
+                    "PAPAssets/css/demo.css",
+                    "PAPAssets/css/lightbox.min.css",
+                    "PAPAssets/css/PersianDatePicker.min.css",
+                    "PAPAssets/css/sweetalert2.min.css",
+                    "PAPAssets/dist/dropzone.css");
+
+                // JS bundles — minify and concatenate all site scripts
+                pipeline.AddJavaScriptBundle("/js/site.min.js",
+                    "js/jquery-3.6.0.min.js",
+                    "js/bootstrap.min.js",
+                    "js/popper.min.js",
+                    "js/modernizr-3.5.0.min.js",
+                    "js/wow.min.js",
+                    "js/owl.carousel.min.js",
+                    "js/slick.min.js",
+                    "js/nouislider.min.js",
+                    "js/waypoints.min.js",
+                    "js/jquery.counterup.min.js",
+                    "js/jquery.nice-select.min.js",
+                    "js/jquery.slicknav.min.js",
+                    "js/jquery.magnific-popup.js",
+                    "js/jquery.countdown.min.js",
+                    "js/jquery.validate.min.js",
+                    "js/main.js");
+
+                // Admin panel JS bundle
+                pipeline.AddJavaScriptBundle("/js/admin.min.js",
+                    "PAPAssets/js/config.js",
+                    "PAPAssets/js/main.js",
+                    "PAPAssets/js/NavMenuItem.js",
+                    "PAPAssets/js/sweetalert2.all.min.js",
+                    "PAPAssets/js/PersianDatePicker.js",
+                    "PAPAssets/js/WebSiteJs.js");
+            }, options =>
+            {
+                // Enable in-memory caching of generated bundles to reduce CPU overhead
+                options.EnableCaching = true;
+                // Enable Razor tag helper bundling so <link> and <script> tags automatically
+                // reference the content-hashed bundle URLs for CloudFront cache-busting
+                options.EnableTagHelperBundling = true;
+            });
+
             // cr-dotnet-0046 (Lines 182, 184): Replaced HttpRuntime.Cache (IIS in-process cache)
             // with Amazon ElastiCache Redis via IDistributedCache (StackExchange.Redis).
             // AddStackExchangeRedisCache() registers IDistributedCache backed by the ElastiCache Redis
@@ -223,7 +309,83 @@ namespace UniversityLibrarySystem
             }
 
             app.UseHttpsRedirection();
-            app.UseStaticFiles();
+
+            // cr-dotnet-1011: UseWebOptimizer middleware must be placed before UseStaticFiles
+            // so that bundle requests (e.g., /css/site.min.css, /js/site.min.js) are intercepted
+            // and served as minified/concatenated bundles by WebOptimizer before the static file
+            // middleware can serve the individual unminified files.
+            // WebOptimizer appends content-hash fingerprints to bundle URLs enabling CloudFront
+            // to cache bundles indefinitely (Cache-Control: public, max-age=31536000, immutable).
+            app.UseWebOptimizer();
+
+            // cr-dotnet-1010: Static File Middleware Without Cache Headers
+            // Configured StaticFileMiddleware with Cache-Control headers for AWS CloudFront CDN.
+            // Without proper Cache-Control headers, CloudFront cannot cache static assets effectively,
+            // increasing origin load and cloud bandwidth costs.
+            //
+            // Strategy:
+            //   - Versioned/fingerprinted assets (js, css, images, fonts, woff, woff2):
+            //       Cache-Control: public, max-age=31536000, immutable
+            //       These files have content-hash in their filename (e.g., site.min.abc123.js),
+            //       so they can be cached indefinitely by CloudFront and browsers.
+            //   - HTML and other non-versioned assets:
+            //       Cache-Control: public, max-age=3600, must-revalidate
+            //       Short TTL ensures CloudFront re-validates stale content.
+            //   - ETag and Last-Modified headers are preserved (default ASP.NET Core behavior)
+            //     to support conditional requests (304 Not Modified) from CloudFront.
+            //
+            // AWS CloudFront integration:
+            //   Configure CloudFront to forward the Cache-Control header from the origin
+            //   (this is the default behavior). CloudFront will respect max-age and immutable
+            //   directives, caching static assets at edge locations globally.
+            //   Set CLOUDFRONT_DISTRIBUTION_ID environment variable for cache invalidation.
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                OnPrepareResponse = ctx =>
+                {
+                    var headers = ctx.Context.Response.Headers;
+                    var path = ctx.File.Name ?? string.Empty;
+
+                    // Determine if the file is a versioned/fingerprinted static asset
+                    // (JavaScript, CSS, images, fonts) that can be cached indefinitely.
+                    bool isVersionedAsset =
+                        path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".gif", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".woff", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".eot", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".otf", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".avif", StringComparison.OrdinalIgnoreCase);
+
+                    if (isVersionedAsset)
+                    {
+                        // Cache versioned/fingerprinted assets for 1 year (365 days).
+                        // 'immutable' tells CloudFront and browsers the content will never change
+                        // for this URL, eliminating conditional revalidation requests entirely.
+                        // This maximises CloudFront cache hit ratio and reduces origin bandwidth.
+                        headers["Cache-Control"] = "public, max-age=31536000, immutable";
+                    }
+                    else
+                    {
+                        // Cache non-versioned assets (HTML, JSON, XML, etc.) for 1 hour.
+                        // 'must-revalidate' ensures CloudFront re-validates with the origin
+                        // after the TTL expires, preventing stale content from being served.
+                        headers["Cache-Control"] = "public, max-age=3600, must-revalidate";
+                    }
+
+                    // Vary header ensures CloudFront creates separate cache entries for
+                    // different Accept-Encoding values (gzip, br), enabling compressed responses.
+                    headers["Vary"] = "Accept-Encoding";
+                }
+            });
 
             // cr-dotnet-0044: Replaces Application_BeginRequest IIS HttpModule hook with
             // ASP.NET Core inline middleware. Runs on Kestrel on Amazon ECS/EKS without IIS.
@@ -293,7 +455,10 @@ namespace UniversityLibrarySystem
 
             try
             {
-                using (var connection = new ULSDBEntities())
+                // cr-dotnet-0123 (Line 501): Replaced hardcoded Web.config connection string with
+                // AWS Secrets Manager retrieval via AwsSecretsManagerHelper.GetDbConnectionString().
+                // The secret name is read from DB_SECRET_NAME environment variable.
+                using (var connection = new ULSDBEntities(AwsSecretsManagerHelper.GetDbConnectionString()))
                 {
                     var query = connection.ULSTbl_Users
                         .AsNoTracking()

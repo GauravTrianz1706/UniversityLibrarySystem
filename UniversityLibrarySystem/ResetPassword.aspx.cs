@@ -6,6 +6,8 @@
 //              Removed dependency on Windows Membership provider for password reset.
 //              Password reset now uses Amazon ElastiCache Redis distributed session to store
 //              the reset username across pods without sticky session routing.
+//   - Line 93: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//              to validate Cognito JWT Bearer Token instead of Windows NTLM/Kerberos token.
 //   Amazon Cognito User Pools issues JWT Bearer Tokens validated by ASP.NET Core middleware
 //   running on Kestrel (Amazon ECS/EKS) without on-premise Active Directory dependencies.
 //   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
@@ -39,6 +41,7 @@
 //            in ConfigureServices(), pointing to Amazon ElastiCache Redis endpoint from
 //            ELASTICACHE_REDIS_CONNECTION_STRING env var. All application instances share the same
 //            Redis cluster, ensuring consistent cache invalidation across pods.
+using Classes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Http;
@@ -53,6 +56,8 @@ namespace UniversityLibrarySystem
     // System.Web.UI.Page) with Amazon Cognito User Pools + JWT Bearer Token authentication.
     // Password reset no longer depends on Windows Membership provider or Active Directory.
     // Session state backed by Amazon ElastiCache Redis distributed session — no sticky sessions.
+    // CognitoJwtHelper.IsAuthenticatedWithCognito() validates Cognito JWT Bearer Tokens
+    // instead of Windows NTLM/Kerberos tokens — no AD domain join required.
     //
     // cr-dotnet-0045 / cr-dotnet-0126: Session backed by Amazon ElastiCache for Redis via
     //   services.AddStackExchangeRedisCache(options => {
@@ -90,7 +95,11 @@ namespace UniversityLibrarySystem
         public IActionResult OnGet()
         {
             SiteName = Classes.SiteConfig.getSiteName();
-            if (User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 93): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
             {
                 return Redirect("/Dash");
             }

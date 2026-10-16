@@ -1,15 +1,19 @@
-﻿function sendToServer() {
+function sendToServer() {
     var id = $('#txtId').val();
     var point = $('#food_quality').val();
     var title = $('#txtTitle').val();
     var description = $('#txtDesc').val();
 
     $.ajax({
-        type: "Post",
+        type: "POST",
         url: "LeaveComment.aspx/sendToServer",
         data: "{'id':'" + id + "','point':'" + point + "','title':'" + title + "','description':'" + description + "'}",
         contentType: "application/json; charset=utf-8",
         dataType: "json",
+        headers: {
+            "Accept": "application/json",
+            "X-Requested-With": "XMLHttpRequest"
+        },
 
         success: function (response) {
             var result = response.d;
@@ -59,11 +63,15 @@ function AddToCart(x) {
     var id = x;
 
     $.ajax({
-        type: "Post",
+        type: "POST",
         url: "PartnerDetail.aspx/AddToCart",
         data: "{'id':'" + x + "'}",
         contentType: "application/json; charset=utf-8",
         dataType: "json",
+        headers: {
+            "Accept": "application/json",
+            "X-Requested-With": "XMLHttpRequest"
+        },
 
         success: function (response) {
             var result = response.d;

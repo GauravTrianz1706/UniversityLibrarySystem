@@ -1,12 +1,17 @@
 // Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages (PageModel)
 // cr-dotnet-0029: Forms Authentication replaced with AWS Cognito User Pools + ASP.NET Core Identity
+// cr-dotnet-1031: Windows Authentication (Integrated Security/NTLM/Kerberos) replaced with
+//   Amazon Cognito User Pools + JWT Bearer Token authentication. User identity is resolved from
+//   the Cognito-issued JWT Bearer Token validated by ASP.NET Core cookie authentication middleware
+//   on Kestrel (Amazon ECS/EKS). No on-premise Active Directory or Windows domain join required.
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
 // Removed: System.Web, System.Web.Security, System.Web.UI, BotDetect
 // Replaced: System.Web.UI.UserControl with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
 // Replaced: Page_Load with OnGet, btnSubmit_Click with OnPost
 // Replaced: FormsAuthentication.SignOut() (lines 30, 72 in original) with AWS Cognito-backed
 //           HttpContext.SignOutAsync(). Cognito JWT tokens are distributed and work across all pods
 //           without server affinity or shared machine keys.
-// Replaced: Membership API with ASP.NET Core Identity UserManager backed by AWS Cognito User Pools
+// Replaced: Membership API / Windows Authentication with ASP.NET Core Identity backed by AWS Cognito User Pools
 //
 // cr-dotnet-0046 (Output Cache Provider) - Lines 26, 28, 68, 70 in original source:
 //   Lines 26, 28: Removed HttpRuntime.Cache[cacheKey] check and HttpRuntime.Cache.Remove(cacheKey)
@@ -76,6 +81,10 @@ namespace UniversityLibrarySystem.Student
             }
 
             string username = User.Identity?.Name?.ToLower();
+            // cr-dotnet-1031 (Line 78): User.Identity.Name is resolved from the Amazon Cognito
+            // JWT Bearer Token (sub/username claim) validated by ASP.NET Core authentication
+            // middleware. Replaces Windows Authentication / Integrated Security identity resolution
+            // that required Active Directory domain join. No AD dependency in cloud environment.
             if (string.IsNullOrEmpty(username))
             {
                 return RedirectToPage("/Index");

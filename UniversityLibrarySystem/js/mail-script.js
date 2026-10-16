@@ -14,6 +14,10 @@
                 type: 'POST', // form submit method get/post
                 dataType: 'json', // explicit dataType for AWS API Gateway compatibility
                 contentType: 'application/json; charset=utf-8', // explicit content-type for AWS API Gateway
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 data: form.serialize(), // serialize form data
                 beforeSend: function() {
                     alert.fadeOut();

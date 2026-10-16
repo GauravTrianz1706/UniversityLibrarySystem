@@ -85,7 +85,8 @@ namespace Classes
 
             try
             {
-                using (var EF = new UniversityLibrarySystem.ULSDBEntities())
+                // cr-dotnet-0123: Replaced hardcoded Web.config connection string with AWS Secrets Manager.
+                using (var EF = new UniversityLibrarySystem.ULSDBEntities(AwsSecretsManagerHelper.GetDbConnectionString()))
                 {
                     var query = (from tableSiteSettings in EF.ULSTbl_SiteSetting
                                  where tableSiteSettings.ID != 0
@@ -123,7 +124,8 @@ namespace Classes
 
             try
             {
-                using (var EF = new UniversityLibrarySystem.ULSDBEntities())
+                // cr-dotnet-0123: Replaced hardcoded Web.config connection string with AWS Secrets Manager.
+                using (var EF = new UniversityLibrarySystem.ULSDBEntities(AwsSecretsManagerHelper.GetDbConnectionString()))
                 {
                     var query = (from TableCategory in EF.ULSTbl_Categories
                                  where TableCategory.Status == true
@@ -208,7 +210,8 @@ namespace Classes
 
             try
             {
-                using (UniversityLibrarySystem.ULSDBEntities EF = new UniversityLibrarySystem.ULSDBEntities())
+                // cr-dotnet-0123: Replaced hardcoded Web.config connection string with AWS Secrets Manager.
+                using (UniversityLibrarySystem.ULSDBEntities EF = new UniversityLibrarySystem.ULSDBEntities(AwsSecretsManagerHelper.GetDbConnectionString()))
                 {
                     var siteSetting = EF.ULSTbl_SiteSetting.FirstOrDefault();
                     if (siteSetting == null || siteSetting.Status == false)
@@ -247,7 +250,8 @@ namespace Classes
 
             try
             {
-                using (UniversityLibrarySystem.ULSDBEntities EF = new UniversityLibrarySystem.ULSDBEntities())
+                // cr-dotnet-0123: Replaced hardcoded Web.config connection string with AWS Secrets Manager.
+                using (UniversityLibrarySystem.ULSDBEntities EF = new UniversityLibrarySystem.ULSDBEntities(AwsSecretsManagerHelper.GetDbConnectionString()))
                 {
                     var siteSetting = EF.ULSTbl_SiteSetting.FirstOrDefault();
                     if (siteSetting == null || siteSetting.CanRes == false)

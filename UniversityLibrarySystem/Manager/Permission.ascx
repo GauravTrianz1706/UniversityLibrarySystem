@@ -1,5 +1,7 @@
-@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
-@* Removed: <%@ Control %> directive, runat="server", asp:ScriptManager, asp:UpdatePanel, asp:CheckBoxList, asp:LinqDataSource *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms UserControl fully migrated to ASP.NET Core Razor Pages partial view *@
+@* <%@ Control %> directive removed - replaced by Pages/Manager/Permission.cshtml (Razor Page) *@
+@* This file is superseded by Pages/Manager/Permission.cshtml - kept for reference only *@
+@* Removed: asp:ScriptManager, asp:UpdatePanel, asp:CheckBoxList, asp:LinqDataSource Web Forms controls *@
 @* Replaced: Web Forms server controls with standard HTML and Razor syntax *@
 @model UniversityLibrarySystem.Manager.PermissionModel
 <style type="text/css">

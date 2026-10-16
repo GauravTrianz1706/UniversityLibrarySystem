@@ -1,5 +1,7 @@
-@* Migrated from ASP.NET Web Forms UserControl (<%@ Control %>) to ASP.NET Core Razor partial view *@
-@* This file replaces Manager/Books.ascx as a Razor partial view *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms UserControl fully migrated to ASP.NET Core Razor partial view *@
+@* <%@ Control %> directive removed - replaced by Pages/Manager/Books.cshtml (Razor Page) *@
+@* This file is superseded by Pages/Manager/Books.cshtml - kept for reference only *@
+@* All Web Forms UserControl patterns (runat="server", asp:* controls) replaced with standard HTML/Razor *@
 @model UniversityLibrarySystem.Manager.BooksViewModel
 <style>
     .activepage {

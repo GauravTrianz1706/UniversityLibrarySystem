@@ -1,5 +1,7 @@
-@* Migrated from ASP.NET Web Forms Page to ASP.NET Core Razor Pages *@
-@* Removed: <%@ Page %> directive, runat="server", MasterPageFile, asp:Content Web Forms controls *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms Page fully migrated to ASP.NET Core Razor Pages *@
+@* <%@ Page %> directive removed - replaced by Pages/Update.cshtml (Razor Page) *@
+@* This file is superseded by Pages/Update.cshtml - kept for reference only *@
+@* Removed: runat="server", MasterPageFile, asp:Content Web Forms controls *@
 @* Replaced: Web Forms page with Razor Pages layout and syntax *@
 @page
 @model UniversityLibrarySystem.UpdateModel

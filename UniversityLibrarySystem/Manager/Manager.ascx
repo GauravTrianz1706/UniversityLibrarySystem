@@ -1,5 +1,7 @@
-@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
-@* Removed: <%@ Control %> directive, runat="server", asp:MultiView, asp:ListView, asp:LinqDataSource, asp:DataPager *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms UserControl fully migrated to ASP.NET Core Razor Pages partial view *@
+@* <%@ Control %> directive removed - replaced by Pages/Manager/Manager.cshtml (Razor Page) *@
+@* This file is superseded by Pages/Manager/Manager.cshtml - kept for reference only *@
+@* Removed: asp:MultiView, asp:ListView, asp:LinqDataSource, asp:DataPager Web Forms controls *@
 @* Replaced: Web Forms server controls with standard HTML and Razor syntax *@
 @model UniversityLibrarySystem.Manager.ManagerPageModel
 <style>

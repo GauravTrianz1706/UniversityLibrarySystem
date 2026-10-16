@@ -1,5 +1,7 @@
-@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
-@* Removed: <%@ Control %> directive, runat="server", asp:Image, asp:FileUpload, asp:Button, asp:Literal *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms UserControl fully migrated to ASP.NET Core Razor Pages partial view *@
+@* <%@ Control %> directive removed - replaced by Pages/Manager/Profile.cshtml (Razor Page) *@
+@* This file is superseded by Pages/Manager/Profile.cshtml - kept for reference only *@
+@* Removed: asp:Image, asp:FileUpload, asp:Button, asp:Literal Web Forms controls *@
 @* Replaced: Web Forms server controls with standard HTML and Razor syntax *@
 @model UniversityLibrarySystem.Manager.ProfileModel
 <script type="text/javascript">

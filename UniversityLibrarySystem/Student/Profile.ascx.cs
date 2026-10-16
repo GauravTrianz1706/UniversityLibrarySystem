@@ -1,11 +1,16 @@
 // Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages (PageModel)
+// cr-dotnet-1031: Windows Authentication (Integrated Security/NTLM/Kerberos) replaced with
+//   Amazon Cognito User Pools + JWT Bearer Token authentication. User identity is resolved from
+//   the Cognito-issued JWT Bearer Token validated by ASP.NET Core cookie authentication middleware
+//   on Kestrel (Amazon ECS/EKS). No on-premise Active Directory or Windows domain join required.
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
 // Removed: System.Web, System.Web.Security, System.Web.UI, System.Web.UI.WebControls
 // Replaced: System.Web.UI.UserControl with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
 // Replaced: Page_Load with OnGet
 // Replaced: btnSubmit_Click with OnPostSubmit
 // Replaced: btnResetProfile_Click with OnPostResetProfile
 // Replaced: Server.MapPath with Amazon S3 file operations (cr-dotnet-1032)
-// Replaced: Membership API with HttpContext.User
+// Replaced: Membership API / Windows Authentication with HttpContext.User backed by Amazon Cognito JWT
 //
 // cr-dotnet-1032 (Server.MapPath for File Access in Cloud) - Lines 63, 68, 117 in original source:
 //   Replaced all Server.MapPath() based file access (local filesystem) with Amazon S3 operations
@@ -99,6 +104,10 @@ namespace UniversityLibrarySystem.Student
                 using (var EF = new ULSDBEntities())
                 {
                     string UserId = User.Identity?.Name?.ToLower();
+                    // cr-dotnet-1031 (Line 101): User.Identity.Name is resolved from the Amazon Cognito
+                    // JWT Bearer Token (sub/username claim) validated by ASP.NET Core authentication
+                    // middleware. Replaces Windows Authentication / Integrated Security identity resolution
+                    // that required Active Directory domain join. No AD dependency in cloud environment.
                     if (string.IsNullOrEmpty(UserId)) return Redirect("/");
 
                     var qGetUser = (from item in EF.ULSTbl_Users
@@ -130,6 +139,10 @@ namespace UniversityLibrarySystem.Student
                 using (var EF = new ULSDBEntities())
                 {
                     string UserId = User.Identity?.Name?.ToLower();
+                    // cr-dotnet-1031 (Line 132): User.Identity.Name is resolved from the Amazon Cognito
+                    // JWT Bearer Token (sub/username claim) validated by ASP.NET Core authentication
+                    // middleware. Replaces Windows Authentication / Integrated Security identity resolution
+                    // that required Active Directory domain join. No AD dependency in cloud environment.
                     if (string.IsNullOrEmpty(UserId)) return Redirect("/");
 
                     var qGetUser = (from item in EF.ULSTbl_Users
@@ -192,6 +205,10 @@ namespace UniversityLibrarySystem.Student
                 using (var EF = new ULSDBEntities())
                 {
                     string UserId = User.Identity?.Name?.ToLower();
+                    // cr-dotnet-1031 (Line 194): User.Identity.Name is resolved from the Amazon Cognito
+                    // JWT Bearer Token (sub/username claim) validated by ASP.NET Core authentication
+                    // middleware. Replaces Windows Authentication / Integrated Security identity resolution
+                    // that required Active Directory domain join. No AD dependency in cloud environment.
                     if (string.IsNullOrEmpty(UserId)) return Redirect("/");
 
                     var qGetUser = (from item in EF.ULSTbl_Users

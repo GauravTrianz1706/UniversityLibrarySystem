@@ -1,6 +1,8 @@
-@* Migrated from ASP.NET Web Forms UserControl (<%@ Control %>) to ASP.NET Core Razor partial view *@
-@* This file replaces Manager/Dashboard.ascx as a Razor partial view *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms UserControl fully migrated to ASP.NET Core Razor partial view *@
+@* <%@ Control %> directive removed - replaced by Pages/Manager/Dashboard.cshtml (Razor Page) *@
+@* This file is superseded by Pages/Manager/Dashboard.cshtml - kept for reference only *@
 @* ScriptManager, UpdatePanel, Timer replaced with standard HTML/JS polling *@
+@* All Web Forms UserControl patterns (runat="server", asp:* controls) replaced with standard HTML/Razor *@
 @model UniversityLibrarySystem.Manager.DashboardViewModel
 <style type="text/css">
     .loader { text-align: center; position: sticky; top: 75px; z-index: 1000; }

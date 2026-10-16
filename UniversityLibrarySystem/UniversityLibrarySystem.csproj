@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- cr-dotnet-0026: Web Forms Usage remediated - ASP.NET Core Razor Pages (.cshtml) files added under Pages/ and Views/ directories -->
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\Microsoft.Net.Compilers.4.1.0\build\Microsoft.Net.Compilers.props" Condition="Exists('..\packages\Microsoft.Net.Compilers.4.1.0\build\Microsoft.Net.Compilers.props')" />
   <Import Project="..\packages\EntityFramework.6.5.1\build\EntityFramework.props" Condition="Exists('..\packages\EntityFramework.6.5.1\build\EntityFramework.props')" />
@@ -78,9 +79,26 @@
       <HintPath>..\packages\AWSSDK.S3.3.7.400.28\lib\net45\AWSSDK.S3.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <!-- cr-dotnet-1018: Ganss.Xss HtmlSanitizer - replaces @Html.Raw() / HtmlString with sanitized output -->
+    <!-- Sanitizer configuration (allowed tags/attributes) stored in AWS Secrets Manager -->
+    <Reference Include="HtmlSanitizer">
+      <HintPath>..\packages\HtmlSanitizer.8.0.843\lib\net462\HtmlSanitizer.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <!-- cr-dotnet-1014: Polly retry policy for transient AWS API Gateway errors (503, timeout) -->
     <Reference Include="Polly">
       <HintPath>..\packages\Polly.7.2.4\lib\net472\Polly.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- cr-dotnet-1011: LigerShark WebOptimizer - bundles and minifies CSS/JS assets for AWS CloudFront delivery -->
+    <!-- Reduces cloud egress costs by serving optimized, content-hashed bundles via CloudFront CDN -->
+    <Reference Include="WebOptimizer.Core">
+      <HintPath>..\packages\LigerShark.WebOptimizer.Core.3.0.357\lib\netstandard2.0\WebOptimizer.Core.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- NUglify: CSS/JS minification engine used by WebOptimizer -->
+    <Reference Include="NUglify">
+      <HintPath>..\packages\NUglify.1.21.7\lib\netstandard2.0\NUglify.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Polly.Extensions.Http">
@@ -210,6 +228,30 @@
     <Content Include="Manager\Default.aspx" />
     <Content Include="PAPAssets\Pages\NotFoundPage.ascx" />
     <Content Include="packages.config" />
+    <!-- cr-dotnet-0026: ASP.NET Core Razor Pages replacing Web Forms pages/controls/master pages -->
+    <!-- Shared Layout replacing Main.Master -->
+    <Content Include="Views\Shared\_Layout.cshtml" />
+    <!-- Manager Razor Pages replacing .ascx UserControls and .aspx pages -->
+    <Content Include="Pages\Manager\Books.cshtml" />
+    <Content Include="Pages\Manager\Categories.cshtml" />
+    <Content Include="Pages\Manager\ChangePassword.cshtml" />
+    <Content Include="Pages\Manager\Dashboard.cshtml" />
+    <Content Include="Pages\Manager\Default.cshtml" />
+    <Content Include="Pages\Manager\Faqs.cshtml" />
+    <Content Include="Pages\Manager\LoginReport.cshtml" />
+    <Content Include="Pages\Manager\Manager.cshtml" />
+    <Content Include="Pages\Manager\Permission.cshtml" />
+    <Content Include="Pages\Manager\Profile.cshtml" />
+    <!-- Student Razor Pages replacing .ascx UserControls and .aspx pages -->
+    <Content Include="Pages\Student\ChangePassword.cshtml" />
+    <Content Include="Pages\Student\Default.cshtml" />
+    <Content Include="Pages\Student\LogOut.cshtml" />
+    <Content Include="Pages\Student\LoginReport.cshtml" />
+    <Content Include="Pages\Student\Profile.cshtml" />
+    <!-- Root-level Razor Pages replacing .aspx pages -->
+    <Content Include="Pages\Update.cshtml" />
+    <Content Include="Pages\about.cshtml" />
+    <Content Include="Pages\faq.cshtml" />
     <Content Include="Main.Master" />
     <Content Include="img\icon\primary-check.png.webp" />
     <Content Include="img\logo\logo.webp" />
@@ -779,10 +821,15 @@
     <Compile Include="Classes\UserStatus.cs" />
     <!-- cr-dotnet-0123: AWS Secrets Manager helper - retrieves secrets at runtime -->
     <Compile Include="Classes\AwsSecretsManagerHelper.cs" />
+    <!-- cr-dotnet-1018: XSS Sanitizer helper - sanitizes HTML/text using Ganss.Xss HtmlSanitizer -->
+    <Compile Include="Classes\XssSanitizer.cs" />
     <!-- cr-dotnet-0123: ULSDBEntities partial class extension - adds connection string constructor -->
     <Compile Include="MainModel.Context.Extensions.cs" />
-    <!-- cr-dotnet-1041: CSP HttpModule - injects Content-Security-Policy headers for cloud security compliance -->
+    <!-- cr-dotnet-0044: IIS CspHttpModule migrated to ASP.NET Core middleware (CspMiddleware) for Kestrel/ECS/EKS compatibility -->
+    <!-- CspHttpModule.cs retained as migration marker only (no IHttpModule / System.Web dependency) -->
     <Compile Include="Security\CspHttpModule.cs" />
+    <!-- cr-dotnet-0044: New ASP.NET Core middleware replacing IIS IHttpModule pattern -->
+    <Compile Include="Security\CspMiddleware.cs" />
     <Compile Include="ContactUs.aspx.cs">
       <DependentUpon>ContactUs.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>

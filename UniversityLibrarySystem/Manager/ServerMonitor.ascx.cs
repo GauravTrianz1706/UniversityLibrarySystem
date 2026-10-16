@@ -9,6 +9,16 @@
 // cr-dotnet-0127: Added IHostApplicationLifetime graceful shutdown handlers to drain CloudWatch
 //                 metric publishing, flush pending metric data, and release AWS SDK resources
 //                 before the process is terminated by the cloud orchestrator (e.g., AWS ECS SIGTERM).
+//
+// cr-dotnet-1031 (Windows Authentication in Web Forms Cloud) - Lines 91, 105 in original source:
+//   Replaced IIS Windows Authentication (Integrated Security/NTLM/Kerberos) with Amazon Cognito
+//   User Pools and JWT Bearer Token authentication. User.Identity.IsAuthenticated is now populated
+//   from Cognito JWT claims validated by ASP.NET Core JWT Bearer middleware.
+//   No on-premise Active Directory domain join required.
+//   - Line 91:  User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 105: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
+using Classes;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -88,7 +98,11 @@ namespace UniversityLibrarySystem.Manager
 
         public IActionResult OnGet()
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 91): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             // cr-dotnet-0127: Check shutdown token before starting any work.
@@ -102,7 +116,11 @@ namespace UniversityLibrarySystem.Manager
 
         public IActionResult OnPost()
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 105): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             // cr-dotnet-0127: Check shutdown token before starting any work.

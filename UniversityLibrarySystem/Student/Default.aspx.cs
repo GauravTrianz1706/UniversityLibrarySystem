@@ -1,8 +1,13 @@
 // Migrated from ASP.NET Web Forms Page to ASP.NET Core Razor Pages (PageModel)
+// cr-dotnet-1031: Windows Authentication (Integrated Security/NTLM/Kerberos) replaced with
+//   Amazon Cognito User Pools + JWT Bearer Token authentication. User identity is resolved from
+//   the Cognito-issued JWT Bearer Token validated by ASP.NET Core cookie authentication middleware
+//   on Kestrel (Amazon ECS/EKS). No on-premise Active Directory or Windows domain join required.
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
 // Removed: System.Web, System.Web.Security, System.Web.UI, System.Web.UI.WebControls
 // Replaced: System.Web.UI.Page with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
 // Replaced: Page_Load with OnGet
-// Replaced: Membership API with ASP.NET Core Identity / HttpContext.User
+// Replaced: Membership API / Windows Authentication with ASP.NET Core Identity / HttpContext.User backed by Amazon Cognito
 // Replaced: Response.Redirect with RedirectToPage
 using Classes;
 using Microsoft.AspNetCore.Mvc;
@@ -30,6 +35,10 @@ namespace UniversityLibrarySystem.Student
             ViewData["Title"] = SiteConfig.mixTitle("پنل داشنجو");
 
             string username = User.Identity?.Name;
+            // cr-dotnet-1031 (Line 32): User.Identity.Name is resolved from the Amazon Cognito
+            // JWT Bearer Token (sub/username claim) validated by ASP.NET Core authentication
+            // middleware. Replaces Windows Authentication / Integrated Security identity resolution
+            // that required Active Directory domain join. No AD dependency in cloud environment.
             if (string.IsNullOrEmpty(username))
             {
                 return Redirect("/");

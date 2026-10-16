@@ -1,6 +1,10 @@
 // cr-dotnet-1031: Windows Authentication in Web Forms Cloud
 // Line 12 in original source used System.Web.Security.Membership (Windows/IIS-specific
 // authentication) which breaks in cloud environments without Active Directory domain join.
+// cr-dotnet-1018: XSS Prevention - Request.Query values sanitized via XssSanitizer (Ganss.Xss)
+//   Line 83: Request.Query["reset"] sanitized with XssSanitizer.SanitizeText() before use.
+//   Sanitizer configuration (allowed tags/attributes) stored in AWS Secrets Manager under
+//   XSS_SANITIZER_CONFIG_SECRET_NAME for centralized multi-tenant management.
 // Replaced with Amazon Cognito User Pools + JWT Bearer Token authentication:
 //   - Line 12: Removed 'using System.Web.Security;' (Windows/IIS-specific Membership API)
 //              Replaced with ASP.NET Core Identity backed by Amazon Cognito User Pools.
@@ -33,6 +37,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
+using UniversityLibrarySystem.Classes;
 
 namespace UniversityLibrarySystem
 {
@@ -80,7 +85,11 @@ namespace UniversityLibrarySystem
                 return RedirectToPage("/Dash");
             }
 
-            string reset = Request.Query["reset"];
+            // cr-dotnet-1018 (Line 83): Sanitize user-supplied query parameter 'reset' using
+            // XssSanitizer (Ganss.Xss) before use to prevent XSS injection.
+            // Sanitizer configuration (allowed tags/attributes) is loaded from AWS Secrets Manager
+            // under XSS_SANITIZER_CONFIG_SECRET_NAME for centralized multi-tenant management.
+            string reset = XssSanitizer.SanitizeText(Request.Query["reset"]);
             if (!string.IsNullOrEmpty(reset) && reset == "1")
             {
                 ShowSuccess = true;

@@ -20,6 +20,14 @@ using Microsoft.Extensions.Caching.Distributed;
 // Replaced: LinqDataSource with direct LINQ queries
 // Replaced: Request.Browser / Request.UserHostAddress with HttpContext equivalents
 //
+// cr-dotnet-1031 (Windows Authentication in Web Forms Cloud) - Line 138 in original source:
+//   Replaced IIS Windows Authentication (Integrated Security/NTLM/Kerberos) with Amazon Cognito
+//   User Pools and JWT Bearer Token authentication. User.Identity.Name is now populated from
+//   the Cognito JWT 'cognito:username' claim validated by ASP.NET Core JWT Bearer middleware.
+//   No on-premise Active Directory domain join required.
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
+//   CognitoJwtHelper.GetUsernameFromClaims(User) extracts the username from Cognito JWT claims.
+//
 // cr-dotnet-0046 (Output Cache Provider) - Lines 27, 29, 53, 55 in original source:
 //   Line 27: Removed HttpRuntime.Cache[cacheKey] != null (IIS in-memory cache check).
 //            In-memory caches don't synchronize across multiple instances, causing cache inconsistency.
@@ -69,9 +77,11 @@ namespace UniversityLibrarySystem.Manager
         // request threads under cloud load.
         public async Task<IActionResult> OnGetAsync()
         {
-            // cr-dotnet-0029 (line 65): Authentication check uses ASP.NET Core Identity backed by
-            // AWS Cognito User Pools JWT tokens. Replaces FormsAuthentication-based session check.
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 138): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             await LoadDevicesAsync();
@@ -80,12 +90,16 @@ namespace UniversityLibrarySystem.Manager
 
         public async Task<IActionResult> OnPostDeleteAllDevicesAsync()
         {
-            // cr-dotnet-0029 (line 66): Authentication check uses ASP.NET Core Identity backed by
-            // AWS Cognito User Pools JWT tokens. Replaces FormsAuthentication-based session check.
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 138): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
-            string username = User.Identity.Name;
+            // cr-dotnet-1031 (Line 138): Replaced WindowsIdentity.GetCurrent().Name with
+            // CognitoJwtHelper.GetUsernameFromClaims(User) to extract username from Cognito JWT
+            // 'cognito:username' claim. No Active Directory dependency.
+            string username = CognitoJwtHelper.GetUsernameFromClaims(User) ?? User.Identity.Name;
             // cr-dotnet-0046 (Lines 53, 55): Replaced HttpRuntime.Cache[cacheKey] != null check
             // (IIS in-memory cache check) and HttpRuntime.Cache.Remove(cacheKey) (IIS in-memory
             // cache invalidation) with IDistributedCache.RemoveAsync() backed by Amazon ElastiCache Redis.
@@ -135,7 +149,10 @@ namespace UniversityLibrarySystem.Manager
         {
             try
             {
-                string username = User.Identity.Name;
+                // cr-dotnet-1031 (Line 138): Replaced WindowsIdentity.GetCurrent().Name with
+                // CognitoJwtHelper.GetUsernameFromClaims(User) to extract username from Cognito JWT
+                // 'cognito:username' claim. No Active Directory dependency.
+                string username = CognitoJwtHelper.GetUsernameFromClaims(User) ?? User.Identity.Name;
                 // cr-dotnet-0046 (Lines 27, 29): Replaced HttpRuntime.Cache[cacheKey] != null check
                 // (IIS in-memory cache check, line 27) and (DateTime)HttpRuntime.Cache[cacheKey]
                 // (IIS in-memory cache read, line 29) with IDistributedCache.GetStringAsync() backed by

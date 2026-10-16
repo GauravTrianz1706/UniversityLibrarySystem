@@ -1,0 +1,72 @@
+@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
+@* Rule cr-dotnet-0026: Web Forms Usage - Replaced <%@ Control %> directive, runat="server", asp:Image, asp:FileUpload, asp:Button, asp:Literal *@
+@* Replaced: Web Forms server controls with standard HTML and Razor syntax *@
+@model UniversityLibrarySystem.Manager.ProfileModel
+<script type="text/javascript">
+    function previewFile() {
+        var preview = document.querySelector('#profile-img');
+        var file = document.querySelector('#fileUploadPic').files[0];
+        var reader = new FileReader();
+
+        reader.onloadend = function () {
+            preview.src = reader.result;
+        }
+
+        if (file) {
+            reader.readAsDataURL(file);
+        } else {
+            preview.src = "../img/no-photo.png";
+        }
+    }
+</script>
+
+<!-- Content -->
+<div class="container-xxl flex-grow-1 container-p-y">
+    <h4 id="head-title" class="py-3 breadcrumb-wrapper mb-4">پروفایل من</h4>
+    @Html.Raw(Model.Message)
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+                        <div class="row">
+                            <div class="mb-3 col-md-12">
+                                <label for="fileUploadPic" class="form-label">تصویر پروفایل</label>
+                                <div class="col-6">
+                                    <img id="profile-img" src="@Model.ProfileImageUrl" height="225" width="225" style="border-radius: 0.25rem;" />
+                                    <br />
+                                    @if (Model.ShowResetButton)
+                                    {
+                                        <button type="submit" name="action" value="resetProfile" class="btn btn-danger my-2 mx-3">بازنشانی تصویر پروفایل</button>
+                                    }
+                                </div>
+                                <br />
+                                <hr />
+                                <input type="file" id="fileUploadPic" name="fileUploadPic" accept="image/*" onchange="previewFile()" class="form-control" />
+                            </div>
+                            <div class="mb-3 col-md-6">
+                                <label for="txtFullName" class="form-label">نام و نام خانوادگی</label>
+                                <input class="form-control" type="text" id="txtFullName" name="txtFullName" value="@Model.FullName" placeholder="نام و نام خانوادگی" required maxlength="50">
+                            </div>
+                            <div class="mb-3 col-md-6">
+                                <label for="txtMobile" class="form-label">موبایل</label>
+                                <input class="form-control text-start" dir="ltr" type="text" id="txtMobile" name="txtMobile" value="@Model.Mobile" placeholder="موبایل" required>
+                            </div>
+                            <div class="mb-3 col-md-6">
+                                <label for="txtEmail" class="form-label">ایمیل</label>
+                                <input class="form-control text-start" dir="ltr" type="email" id="txtEmail" name="txtEmail" value="@Model.Email" placeholder="ایمیل">
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <button type="submit" name="action" value="save" class="btn btn-primary me-2">ذخیره تغییرات</button>
+                            <a href="./" class="btn btn-label-secondary">بازگشت</a>
+                        </div>
+                    </form>
+                </div>
+                <!-- /Account -->
+            </div>
+        </div>
+    </div>
+</div>

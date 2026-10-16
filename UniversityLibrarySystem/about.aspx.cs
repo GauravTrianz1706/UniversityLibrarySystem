@@ -70,6 +70,8 @@ namespace UniversityLibrarySystem
             // provider check) and Roles.GetRolesForUser() (Windows/AD-backed role provider) with
             // ASP.NET Core User.Identity.IsAuthenticated and User.IsInRole() backed by Amazon
             // Cognito JWT Bearer Token (cognito:groups claim). No Active Directory required.
+            // cr-dotnet-1031 (Line 73): User.Identity.IsAuthenticated and User.IsInRole() are backed
+            // by Amazon Cognito JWT Bearer Token — no Windows/NTLM/Kerberos or Active Directory required.
             if (User.Identity?.IsAuthenticated == true)
             {
                 ShowEditButton = User.IsInRole("admin");

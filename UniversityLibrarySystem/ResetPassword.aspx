@@ -1,8 +1,15 @@
 @* Migrated from ASP.NET Web Forms Page to ASP.NET Core Razor Pages *@
+@* cr-dotnet-1038: Static assets served via Amazon CloudFront + S3 CDN instead of local origin *@
 @page
 @model UniversityLibrarySystem.ResetPasswordModel
 @{
     ViewData["Title"] = "فراموشی رمز عبور";
+    // cr-dotnet-1038: Read CloudFront CDN base URL from environment variable.
+    // Set CLOUDFRONT_CDN_URL to your CloudFront distribution domain at deployment time,
+    // e.g. https://d1234abcd.cloudfront.net  (no trailing slash).
+    // Assets must be uploaded to the backing S3 bucket under the same relative paths
+    // (css/, js/, img/) so CloudFront can serve them from the S3 origin.
+    var cdnBaseUrl = Environment.GetEnvironmentVariable("CLOUDFRONT_CDN_URL") ?? string.Empty;
 }
 <!DOCTYPE html>
 
@@ -10,17 +17,19 @@
 <head>
     <title>@ViewData["Title"]</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="shortcut icon" type="image/x-icon" href="~/img/logo/favicon.png">
-    <link rel="stylesheet" href="~/css/bootstrap.min.css">
-    <link rel="stylesheet" href="~/css/owl.carousel.min.css">
-    <link rel="stylesheet" href="~/css/slicknav.css">
-    <link rel="stylesheet" href="~/css/animate.min.css">
-    <link rel="stylesheet" href="~/css/magnific-popup.css">
-    <link rel="stylesheet" href="~/css/fontawesome-all.min.css">
-    <link rel="stylesheet" href="~/css/themify-icons.css">
-    <link rel="stylesheet" href="~/css/slick.css">
-    <link rel="stylesheet" href="~/css/nice-select.css">
-    <link rel="stylesheet" href="~/css/style.css">
+    @* cr-dotnet-1038: favicon served from CloudFront + S3 *@
+    <link rel="shortcut icon" type="image/x-icon" href="@(cdnBaseUrl)/img/logo/favicon.png">
+    @* cr-dotnet-1038: CSS assets served from CloudFront + S3 (lines 14-23) *@
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/bootstrap.min.css">
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/owl.carousel.min.css">
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/slicknav.css">
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/animate.min.css">
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/magnific-popup.css">
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/fontawesome-all.min.css">
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/themify-icons.css">
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/slick.css">
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/nice-select.css">
+    <link rel="stylesheet" href="@(cdnBaseUrl)/css/style.css">
 </head>
 <body>
 
@@ -32,7 +41,8 @@
                 <div class="register-form">
                     <div class="register-heading">
                         <a href="/">
-                            <img src="~/img/logo/logo.png" alt="@Model.SiteName" />
+                            @* cr-dotnet-1038: Logo image served from CloudFront + S3 *@
+                            <img src="@(cdnBaseUrl)/img/logo/logo.png" alt="@Model.SiteName" />
                         </a>
                         <span>بازیابی رمز عبور</span>
                         <p>رمز عبور جدید خود را تنظیم کنید.</p>
@@ -60,26 +70,27 @@
     </main>
 
 
-    <script src="~/js/modernizr-3.5.0.min.js" defer></script>
-    <script src="~/js/jquery-1.12.4.min.js" defer></script>
-    <script src="~/js/popper.min.js" defer></script>
-    <script src="~/js/bootstrap.min.js" defer></script>
+    @* cr-dotnet-1038: JS assets served from CloudFront + S3 *@
+    <script src="@(cdnBaseUrl)/js/modernizr-3.5.0.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/jquery-1.12.4.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/popper.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/bootstrap.min.js" defer></script>
 
-    <script src="~/js/owl.carousel.min.js" defer></script>
-    <script src="~/js/slick.min.js" defer></script>
-    <script src="~/js/jquery.slicknav.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/owl.carousel.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/slick.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/jquery.slicknav.min.js" defer></script>
 
-    <script src="~/js/wow.min.js" defer></script>
-    <script src="~/js/jquery.magnific-popup.js" defer></script>
-    <script src="~/js/jquery.nice-select.min.js" defer></script>
-    <script src="~/js/jquery.counterup.min.js" defer></script>
-    <script src="~/js/waypoints.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/wow.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/jquery.magnific-popup.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/jquery.nice-select.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/jquery.counterup.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/waypoints.min.js" defer></script>
 
-    <script src="~/js/jquery.form.js" defer></script>
-    <script src="~/js/jquery.validate.min.js" defer></script>
-    <script src="~/js/jquery.ajaxchimp.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/jquery.form.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/jquery.validate.min.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/jquery.ajaxchimp.min.js" defer></script>
 
-    <script src="~/js/main.js" defer></script>
+    <script src="@(cdnBaseUrl)/js/main.js" defer></script>
 
 </body>
 </html>

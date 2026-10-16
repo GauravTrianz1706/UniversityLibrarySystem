@@ -7,6 +7,8 @@
 //              User registration now stores credentials compatible with Amazon Cognito User Pools.
 //              BCrypt password hashing used for local credential storage; Cognito manages
 //              cloud authentication tokens without on-premise Active Directory.
+//   - Line 62: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//              to validate Cognito JWT Bearer Token instead of Windows NTLM/Kerberos token.
 //   Amazon Cognito User Pools issues JWT Bearer Tokens validated by ASP.NET Core middleware
 //   running on Kestrel (Amazon ECS/EKS) without on-premise Active Directory dependencies.
 //   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
@@ -29,6 +31,8 @@ namespace UniversityLibrarySystem
     // User registration no longer depends on Windows Membership provider or Active Directory.
     // Credentials are stored with BCrypt hashing; Amazon Cognito manages cloud authentication
     // tokens without on-premise AD dependencies.
+    // CognitoJwtHelper.IsAuthenticatedWithCognito() validates Cognito JWT Bearer Tokens
+    // instead of Windows NTLM/Kerberos tokens — no AD domain join required.
     public class RegisterModel : PageModel
     {
         [BindProperty]
@@ -59,7 +63,11 @@ namespace UniversityLibrarySystem
             {
                 return StatusCode(503);
             }
-            if (User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 62): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
             {
                 return Redirect("~/Dash");
             }
@@ -94,6 +102,8 @@ namespace UniversityLibrarySystem
                         // cr-dotnet-1031 (Line 22): Replaced Windows Membership provider
                         // (Membership.CreateUser) with direct database user creation compatible
                         // with Amazon Cognito User Pools. No Windows Authentication or AD required.
+                        // CognitoJwtHelper validates JWT Bearer Tokens issued by Cognito User Pools
+                        // instead of Windows NTLM/Kerberos tokens — no AD domain join required.
                         var TableUser = new ULSTbl_Users
                         {
                             UserName = username,

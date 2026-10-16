@@ -18,6 +18,16 @@ using Microsoft.Extensions.Hosting;
 // cr-dotnet-0127: Added IHostApplicationLifetime graceful shutdown handlers to drain EF connections,
 //                 flush pending saves, and release cloud resources before termination.
 //
+// cr-dotnet-1031 (Windows Authentication in Web Forms Cloud) - Lines 102, 120, 148 in original source:
+//   Replaced IIS Windows Authentication (Integrated Security/NTLM/Kerberos) with Amazon Cognito
+//   User Pools and JWT Bearer Token authentication. User.Identity.IsAuthenticated and
+//   User.Identity.Name are now populated from Cognito JWT claims validated by ASP.NET Core
+//   JWT Bearer middleware. No on-premise Active Directory domain join required.
+//   - Line 102: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 120: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 148: User.Identity.Name replaced with CognitoJwtHelper.GetUsernameFromClaims(User)
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
+//
 // cr-dotnet-1000 (Synchronous Razor View Rendering) - Lines 29, 47 in original source:
 //   Replaced synchronous blocking LinqDataSource event handlers and synchronous EF queries with
 //   async/await patterns backed by AWS ElastiCache (Redis) for non-blocking data retrieval.
@@ -99,7 +109,11 @@ namespace UniversityLibrarySystem.Manager
         // prevent blocking request threads under cloud load.
         public async Task<IActionResult> OnGetAsync(string drpPersonal = null)
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 102): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             // cr-dotnet-0127: Check shutdown token before starting any work.
@@ -117,7 +131,11 @@ namespace UniversityLibrarySystem.Manager
         // synchronous EF queries with async equivalents to prevent blocking request threads.
         public async Task<IActionResult> OnPostAsync(string drpPersonal, List<int> selectedPermissions)
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 120): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             // cr-dotnet-0127: Check shutdown token before starting any work.
@@ -144,8 +162,10 @@ namespace UniversityLibrarySystem.Manager
                     // SaveChangesAsync is guarded by the ApplicationStopping token check above.
                     await EF.SaveChangesAsync();
 
-                    // Ensure current user always has Dashboard access
-                    string currentUser = User.Identity.Name?.ToLower();
+                    // cr-dotnet-1031 (Line 148): Replaced WindowsIdentity.GetCurrent().Name with
+                    // CognitoJwtHelper.GetUsernameFromClaims(User) to extract username from Cognito JWT
+                    // 'cognito:username' claim. No Active Directory dependency.
+                    string currentUser = (CognitoJwtHelper.GetUsernameFromClaims(User) ?? User.Identity.Name)?.ToLower();
                     if (selectedPermissions == null) selectedPermissions = new List<int>();
                     if (SelectedUserName.ToLower() == currentUser)
                     {

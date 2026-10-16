@@ -5,6 +5,25 @@
 // Replaced: Request.QueryString with HttpContext.Request.Query
 // Replaced: LinqDataSourceSelectEventArgs with direct data binding
 //
+// cr-dotnet-1031 (Windows Authentication in Web Forms Cloud) - Lines 37, 180, 222, 272, 326, 382 in original source:
+//   Replaced IIS Windows Authentication (Integrated Security/NTLM/Kerberos) with Amazon Cognito
+//   User Pools and JWT Bearer Token authentication. User.Identity.IsAuthenticated is now populated
+//   from Cognito JWT claims validated by ASP.NET Core JWT Bearer middleware.
+//   No on-premise Active Directory domain join required.
+//   - Line 37:  User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 180: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 222: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 272: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 326: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   - Line 382: User.Identity.IsAuthenticated check replaced with CognitoJwtHelper.IsAuthenticatedWithCognito()
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
+//
+// cr-dotnet-1018: XSS Prevention - Request.Query values sanitized via XssSanitizer (Ganss.Xss)
+//   Lines 66, 119, 120, 121, 185, 227, 277, 331: All Request.Query values (hashId, text, uid,
+//   mode) are sanitized with XssSanitizer.SanitizeText() before use to prevent XSS injection.
+//   Sanitizer configuration (allowed tags/attributes) is stored in AWS Secrets Manager under
+//   XSS_SANITIZER_CONFIG_SECRET_NAME for centralized management across multi-tenant environments.
+//
 // cr-dotnet-1000 (Synchronous Razor View Rendering) - Lines 250, 252 in original source:
 //   Replaced synchronous blocking LinqDataSource event handlers and synchronous EF queries with
 //   async/await patterns backed by AWS ElastiCache (Redis) for non-blocking data retrieval.
@@ -19,6 +38,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using UniversityLibrarySystem.Classes;
 
 namespace UniversityLibrarySystem.Manager
 {
@@ -34,7 +54,11 @@ namespace UniversityLibrarySystem.Manager
         // prevent blocking request threads under cloud load.
         public async Task<IActionResult> OnGetAsync()
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 37): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             ActiveViewIndex = 0;
@@ -63,7 +87,10 @@ namespace UniversityLibrarySystem.Manager
 
             if (Request.Query.ContainsKey("View"))
             {
-                string hashId = Request.Query["View"];
+                // cr-dotnet-1018 (Line 66): Sanitize user-supplied query parameter 'View' using
+                // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+                // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+                string hashId = XssSanitizer.SanitizeText(Request.Query["View"]);
                 int id = Hash2ID.HAsh2ID(hashId);
                 ActiveViewIndex = 1;
                 PanelSearchVisible = false;
@@ -116,9 +143,13 @@ namespace UniversityLibrarySystem.Manager
         {
             using (ULSDBEntities EF = new ULSDBEntities())
             {
-                string text = Request.Query.ContainsKey("txtText") ? Request.Query["txtText"].ToString() : string.Empty;
-                string uid = Request.Query.ContainsKey("uid") ? Request.Query["uid"].ToString().Trim() : string.Empty;
-                string mode = Request.Query.ContainsKey("Mode") ? Request.Query["Mode"].ToString().Trim() : string.Empty;
+                // cr-dotnet-1018 (Lines 119, 120, 121): Sanitize user-supplied query parameters
+                // 'txtText', 'uid', and 'Mode' using XssSanitizer.SanitizeText() before use
+                // to prevent XSS injection. Sanitizer config loaded from AWS Secrets Manager
+                // (XSS_SANITIZER_CONFIG_SECRET_NAME) for centralized multi-tenant management.
+                string text = Request.Query.ContainsKey("txtText") ? XssSanitizer.SanitizeText(Request.Query["txtText"].ToString()) : string.Empty;
+                string uid = Request.Query.ContainsKey("uid") ? XssSanitizer.SanitizeText(Request.Query["uid"].ToString().Trim()) : string.Empty;
+                string mode = Request.Query.ContainsKey("Mode") ? XssSanitizer.SanitizeText(Request.Query["Mode"].ToString().Trim()) : string.Empty;
 
                 var qGetInfo = await (from item in EF.ULSTbl_Books
                                       join ite in EF.ULSTbl_Categories
@@ -177,12 +208,19 @@ namespace UniversityLibrarySystem.Manager
         // synchronous EF queries with async equivalents to prevent blocking request threads.
         public async Task<IActionResult> OnPostResAsync(string customCode)
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 180): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             if (Request.Query.ContainsKey("View"))
             {
-                string hashId = Request.Query["View"];
+                // cr-dotnet-1018 (Line 185): Sanitize user-supplied query parameter 'View' using
+                // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+                // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+                string hashId = XssSanitizer.SanitizeText(Request.Query["View"]);
                 int id = Hash2ID.HAsh2ID(hashId);
                 try
                 {
@@ -219,12 +257,19 @@ namespace UniversityLibrarySystem.Manager
 
         public async Task<IActionResult> OnPostDeleteAsync()
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 222): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             if (Request.Query.ContainsKey("View"))
             {
-                string hashId = Request.Query["View"];
+                // cr-dotnet-1018 (Line 227): Sanitize user-supplied query parameter 'View' using
+                // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+                // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+                string hashId = XssSanitizer.SanitizeText(Request.Query["View"]);
                 int id = Hash2ID.HAsh2ID(hashId);
                 try
                 {
@@ -269,12 +314,19 @@ namespace UniversityLibrarySystem.Manager
 
         public async Task<IActionResult> OnPostDeliverAsync()
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 272): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             if (Request.Query.ContainsKey("View"))
             {
-                string hashId = Request.Query["View"];
+                // cr-dotnet-1018 (Line 277): Sanitize user-supplied query parameter 'View' using
+                // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+                // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+                string hashId = XssSanitizer.SanitizeText(Request.Query["View"]);
                 int id = Hash2ID.HAsh2ID(hashId);
                 try
                 {
@@ -323,12 +375,19 @@ namespace UniversityLibrarySystem.Manager
 
         public async Task<IActionResult> OnPostRenewAsync()
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 326): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             if (Request.Query.ContainsKey("View"))
             {
-                string hashId = Request.Query["View"];
+                // cr-dotnet-1018 (Line 331): Sanitize user-supplied query parameter 'View' using
+                // XssSanitizer.SanitizeText() before use to prevent XSS injection.
+                // Sanitizer config loaded from AWS Secrets Manager (XSS_SANITIZER_CONFIG_SECRET_NAME).
+                string hashId = XssSanitizer.SanitizeText(Request.Query["View"]);
                 int id = Hash2ID.HAsh2ID(hashId);
                 try
                 {
@@ -379,7 +438,11 @@ namespace UniversityLibrarySystem.Manager
 
         public async Task<IActionResult> OnPostNewAsync(string txtUsernameNew, string txtISBNNew, string txtDetail)
         {
-            if (!User.Identity.IsAuthenticated)
+            // cr-dotnet-1031 (Line 382): Replaced Windows Authentication (NTLM/Kerberos) check with
+            // Amazon Cognito JWT Bearer Token authentication. User.Identity.IsAuthenticated is set
+            // by ASP.NET Core JWT Bearer middleware after validating the Cognito-issued JWT token.
+            // No Active Directory domain join required — authentication is fully cloud-native.
+            if (!CognitoJwtHelper.IsAuthenticatedWithCognito(HttpContext))
                 return Redirect("/");
 
             using (ULSDBEntities EF = new ULSDBEntities())

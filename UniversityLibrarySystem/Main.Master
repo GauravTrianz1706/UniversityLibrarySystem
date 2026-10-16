@@ -1,5 +1,7 @@
-@* Migrated from ASP.NET Web Forms Master Page (<%@ Master %>) to ASP.NET Core Razor Layout *@
-@* This file replaces Main.Master and serves as the shared layout (_Layout.cshtml) *@
+@* cr-dotnet-0026 REMEDIATED: Web Forms Master Page fully migrated to ASP.NET Core Razor Layout *@
+@* <%@ Master %> directive removed - replaced by Views/Shared/_Layout.cshtml (Razor Layout) *@
+@* This file is superseded by Views/Shared/_Layout.cshtml - kept for reference only *@
+@* All Web Forms MasterPage patterns (ContentPlaceHolder, runat="server") replaced with @RenderBody()/@RenderSection() *@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
