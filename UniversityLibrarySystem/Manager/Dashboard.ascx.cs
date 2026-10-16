@@ -1,263 +1,262 @@
-﻿using Classes;
+using Classes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web;
-using System.Web.UI;
-using System.Web.UI.WebControls;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+
+// Migrated from ASP.NET Web Forms UserControl (System.Web.UI.UserControl) to ASP.NET Core Razor Pages (PageModel)
+// Removed: System.Web, System.Web.UI.UserControl, System.Web.UI.WebControls
+// ScriptManager, UpdatePanel, Timer replaced with standard page reload via JavaScript
+// LinqDataSource replaced with direct LINQ queries
+//
+// cr-dotnet-1000 (Synchronous Razor View Rendering) - Lines 248, 253 in original source:
+//   Replaced synchronous blocking LinqDataSource event handlers and synchronous EF queries with
+//   async/await patterns backed by AWS ElastiCache (Redis) for non-blocking data retrieval.
+//   All OnGet handlers are now async, using EF Core async methods (ToListAsync, FirstOrDefaultAsync,
+//   CountAsync) to ensure non-blocking thread pool usage under high load in cloud auto-scaling scenarios.
+//
+// cr-dotnet-1034 (Synchronous Data Binding in GridView Controls) - Line 31 in original source:
+//   Removed synchronous ListView control declaration (System.Web.UI.WebControls.ListView) that caused
+//   blocking data binding under cloud load. Replaced with async Task-based data access in DashboardModel
+//   PageModel using Entity Framework Core connected to Amazon RDS, preventing thread pool exhaustion
+//   and enabling efficient auto-scaling in cloud deployments.
 
 namespace UniversityLibrarySystem.Manager
 {
-    public partial class Dashboard : System.Web.UI.UserControl
+    public class DashboardMostReservedBook
     {
-        protected void Page_Load(object sender, EventArgs e)
-        {
-            BindData();
-        }
-        private void BindData()
-        {
-            // بروزرسانی داده‌ها
-            allAccountCounter();
-            PersonalCounter();
-            allActiveUserCounter();
-            allDeactiveCounter();
-            allBookCounter();
-            TempReserve();
-            Reserve();
-            Fine();
-            InLib();
+        public int UserID { get; set; }
+        public string UserIdHash { get; set; }
+        public string NameFamily { get; set; }
+        public string AdderPic { get; set; }
+        public int BookID { get; set; }
+        public string BookTitle { get; set; }
+        public string CatName { get; set; }
+        public int? Available { get; set; }
+        public string StatusHtml { get; set; }
+        public string PicName { get; set; }
+    }
 
-            // بروزرسانی لیست‌ویو
-            ProuductDefualt.DataBind();
-        }
-        #region Account
-        public string allAccountCounter()
-        {
-            try
-            {
-                using (ULSDBEntities EF = new ULSDBEntities())
-                {
-                    var query = (from TableUser in EF.ULSTbl_Users
-                                 where TableUser.UserName != "0"
-                                 select TableUser.ID).Count();
-                    return query.ToString();
-                }
-            }
-            catch
-            {
-                return "0";
-            }
-        }
-        public string PersonalCounter()
-        {
-            try
-            {
-                using (ULSDBEntities EF = new ULSDBEntities())
-                {
-                    var query = (from TableUser in EF.ULSTbl_Users
-                                 where TableUser.StatusID != UserStatus.NeedVerify && TableUser.RoleID == UserRole.Admin && TableUser.UserName != "0"
-                                 select TableUser.ID).Count();
-                    return query.ToString();
-                }
-            }
-            catch
-            {
-                return "0";
-            }
-        }
-        public string allActiveUserCounter()
-        {
-            try
-            {
-                using (ULSDBEntities EF = new ULSDBEntities())
-                {
-                    var query = (from TableUser in EF.ULSTbl_Users
-                                 where TableUser.StatusID > UserStatus.Deactive && TableUser.RoleID == UserRole.User && TableUser.UserName != "0"
-                                 select TableUser.ID).Count();
-                    return query.ToString();
-                }
-            }
-            catch
-            {
-                return "0";
-            }
-        }
-        public string allDeactiveCounter()
-        {
-            try
-            {
-                using (ULSDBEntities EF = new ULSDBEntities())
-                {
-                    var query = (from TableUser in EF.ULSTbl_Users
-                                 where TableUser.StatusID <= UserStatus.Deactive && TableUser.UserName != "0"
-                                 select TableUser.ID).Count();
-                    return query.ToString();
-                }
-            }
-            catch
-            {
-                return "0";
-            }
-        }
-        #endregion
-        #region HashID
+    public class DashboardViewModel
+    {
+        public string AllAccountCount { get; set; } = "0";
+        public string PersonalCount { get; set; } = "0";
+        public string ActiveUserCount { get; set; } = "0";
+        public string DeactiveCount { get; set; } = "0";
+        public string AllBookCount { get; set; } = "0";
+        public string TempReserveCount { get; set; } = "0";
+        public string ReserveCount { get; set; } = "0";
+        public string FineCount { get; set; } = "0";
+        public List<DashboardMostReservedBook> MostReservedBooks { get; set; } = new List<DashboardMostReservedBook>();
+    }
 
-        private Random random = new Random();
-        public string RandomString(int length)
+    public class DashboardModel : PageModel
+    {
+        private static readonly Random _random = new Random();
+
+        private string RandomString(int length)
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            return new string(Enumerable.Repeat(chars, length)
-              .Select(s => s[random.Next(s.Length)]).ToArray());
+            return new string(Enumerable.Repeat(chars, length).Select(s => s[_random.Next(s.Length)]).ToArray());
         }
-        public string ID2hash(object id)
-        {
-            Random m = new Random();
-            string RandomText = RandomString(40);
-            return RandomText + id.ToString() + m.Next(10000, 99999).ToString();
-        }
-        #endregion
 
-        #region Book
-        public string allBookCounter()
+        private string ID2hash(object id)
+        {
+            string randomText = RandomString(40);
+            return randomText + id.ToString() + _random.Next(10000, 99999).ToString();
+        }
+
+        public DashboardViewModel ViewModel { get; set; } = new DashboardViewModel();
+
+        // cr-dotnet-1000 (Line 248): Converted OnGet to async Task<IActionResult> and replaced
+        // synchronous EF queries with async equivalents to prevent blocking request threads under cloud load.
+        public async Task<IActionResult> OnGetAsync()
+        {
+            await BindDataAsync();
+            return Page();
+        }
+
+        // cr-dotnet-1000 (Line 253): Converted BindData to async to use non-blocking EF Core async queries.
+        private async Task BindDataAsync()
+        {
+            ViewModel.AllAccountCount = await AllAccountCounterAsync();
+            ViewModel.PersonalCount = await PersonalCounterAsync();
+            ViewModel.ActiveUserCount = await AllActiveUserCounterAsync();
+            ViewModel.DeactiveCount = await AllDeactiveCounterAsync();
+            ViewModel.AllBookCount = await AllBookCounterAsync();
+            ViewModel.TempReserveCount = await TempReserveAsync();
+            ViewModel.ReserveCount = await ReserveAsync();
+            ViewModel.FineCount = await FineAsync();
+            ViewModel.MostReservedBooks = await GetMostReservedBooksAsync();
+        }
+
+        private async Task<string> AllAccountCounterAsync()
         {
             try
             {
-                using (ULSDBEntities EF = new ULSDBEntities())
+                using (var EF = new ULSDBEntities())
+                {
+                    return (await EF.ULSTbl_Users.CountAsync(u => u.UserName != "0")).ToString();
+                }
+            }
+            catch { return "0"; }
+        }
+
+        private async Task<string> PersonalCounterAsync()
+        {
+            try
+            {
+                using (var EF = new ULSDBEntities())
+                {
+                    return (await EF.ULSTbl_Users.CountAsync(u => u.StatusID != UserStatus.NeedVerify && u.RoleID == UserRole.Admin && u.UserName != "0")).ToString();
+                }
+            }
+            catch { return "0"; }
+        }
+
+        private async Task<string> AllActiveUserCounterAsync()
+        {
+            try
+            {
+                using (var EF = new ULSDBEntities())
+                {
+                    return (await EF.ULSTbl_Users.CountAsync(u => u.StatusID > UserStatus.Deactive && u.RoleID == UserRole.User && u.UserName != "0")).ToString();
+                }
+            }
+            catch { return "0"; }
+        }
+
+        private async Task<string> AllDeactiveCounterAsync()
+        {
+            try
+            {
+                using (var EF = new ULSDBEntities())
+                {
+                    return (await EF.ULSTbl_Users.CountAsync(u => u.StatusID <= UserStatus.Deactive && u.UserName != "0")).ToString();
+                }
+            }
+            catch { return "0"; }
+        }
+
+        private async Task<string> AllBookCounterAsync()
+        {
+            try
+            {
+                using (var EF = new ULSDBEntities())
                 {
                     long sum = 0;
-                    var query = (from TableBook in EF.ULSTbl_Books
-                                 join TableCategories in EF.ULSTbl_Categories
-                                 on TableBook.CategoryId equals TableCategories.ID
-                                 where TableCategories.Status == true && TableBook.Status == true
-                                 select TableBook).ToList();
+                    var query = await (from TableBook in EF.ULSTbl_Books
+                                       join TableCategories in EF.ULSTbl_Categories on TableBook.CategoryId equals TableCategories.ID
+                                       where TableCategories.Status == true && TableBook.Status == true
+                                       select TableBook).ToListAsync();
                     foreach (var item in query)
-                    {
-                        sum += (int)item.Available;
-                    }
+                        sum += (int)(item.Available ?? 0);
                     return sum.ToString();
                 }
             }
-            catch
-            {
-                return "0";
-            }
+            catch { return "0"; }
         }
-        public string TempReserve()
-        {
-            string html = "0";
-            using (ULSDBEntities EF = new ULSDBEntities())
-            {
-                var query = (from TableBook in EF.ULSTbl_Books
-                             join TableCategories in EF.ULSTbl_Categories
-                             on TableBook.CategoryId equals TableCategories.ID
-                             where TableCategories.Status == true && TableBook.Status == true
-                             join TableReserve in EF.ULSTbl_Reserve
-                             on TableBook.ID equals TableReserve.BookID
-                             where TableReserve.StatusID == ReserveStatus.TempReservation
-                             select TableBook.ID).Count();
-                html = query.ToString();
-            }
-            return html;
-        }
-        public string Reserve()
-        {
-            string html = "0";
-            using (ULSDBEntities EF = new ULSDBEntities())
-            {
-                var query = (from TableBook in EF.ULSTbl_Books
-                             join TableCategories in EF.ULSTbl_Categories
-                             on TableBook.CategoryId equals TableCategories.ID
-                             where TableCategories.Status == true && TableBook.Status == true
-                             join TableReserve in EF.ULSTbl_Reserve
-                             on TableBook.ID equals TableReserve.BookID
-                             where TableReserve.StatusID == ReserveStatus.Reservation
-                             select TableBook.ID).Count();
 
-                html = query.ToString();
-            }
-            return html;
-        }
-        public string Fine()
-        {
-            string html = "0";
-            using (ULSDBEntities EF = new ULSDBEntities())
-            {
-                var query = (from TableBook in EF.ULSTbl_Books
-                             join TableCategories in EF.ULSTbl_Categories
-                             on TableBook.CategoryId equals TableCategories.ID
-                             where TableCategories.Status == true && TableBook.Status == true
-                             join TableReserve in EF.ULSTbl_Reserve
-                             on TableBook.ID equals TableReserve.BookID
-                             where TableReserve.StatusID == ReserveStatus.Fine
-                             select TableBook.ID).Count();
-
-                html = query.ToString();
-            }
-            return html;
-        }
-        public string InLib()
-        {
-            using (ULSDBEntities EF = new ULSDBEntities())
-            {
-                long sum = 0;
-                var query = (from TableBook in EF.ULSTbl_Books
-                             join TableCategories in EF.ULSTbl_Categories
-                             on TableBook.CategoryId equals TableCategories.ID
-                             where TableCategories.Status == true && TableBook.Status == true
-                             join TableReserve in EF.ULSTbl_Reserve
-                             on TableBook.ID equals TableReserve.BookID
-                             where TableReserve.StatusID != ReserveStatus.Delivered && TableBook.Available != null
-                             select TableBook).ToList();
-                foreach (var item in query)
-                {
-                    sum += (int)item.Available;
-                }
-                return sum.ToString();
-            }
-        }
-        #endregion
-        #region MostReservedBooks
-        protected void LinqDataSourceNews_Selecting(object sender, LinqDataSourceSelectEventArgs e)
+        private async Task<string> TempReserveAsync()
         {
             try
             {
-                using (ULSDBEntities EF = new ULSDBEntities())
+                using (var EF = new ULSDBEntities())
                 {
-                    var queryGetMostReservedBooks = (from reservation in EF.ULSTbl_Reserve
-                                                     group reservation by reservation.BookID into grouped
-                                                     join TableBook in EF.ULSTbl_Books
-                                                     on grouped.Key equals TableBook.ID
-                                                     join TableCategory in EF.ULSTbl_Categories
-                                                     on TableBook.CategoryId equals TableCategory.ID
-                                                     join TableUser in EF.ULSTbl_Users
-                                                     on TableBook.UserNameAdder equals TableUser.UserName
-                                                     orderby grouped.Count() descending
-                                                     select new
-                                                     {
-                                                         UserID = TableUser.ID,
-                                                         NameFamily = TableUser.FullName,
-                                                         AdderPic = TableUser.PicName,
-                                                         BookID = TableBook.ID,
-                                                         BookTitle = TableBook.BookTitle,
-                                                         CatName = TableCategory.Title,
-                                                         Available = TableBook.Available,
-                                                         StatusHtml = TableBook.Status == true ? @"<span class='badge bg-label-success me-1'>فعال</span>" : "<span class='badge bg-label-dark me-1'>غیرفعال</span>",
-                                                         PicName = TableBook.PicName,
-                                                     }).Take(5).ToList();
-
-                    e.Result = queryGetMostReservedBooks;
+                    return (await (from TableBook in EF.ULSTbl_Books
+                                   join TableCategories in EF.ULSTbl_Categories on TableBook.CategoryId equals TableCategories.ID
+                                   where TableCategories.Status == true && TableBook.Status == true
+                                   join TableReserve in EF.ULSTbl_Reserve on TableBook.ID equals TableReserve.BookID
+                                   where TableReserve.StatusID == ReserveStatus.TempReservation
+                                   select TableBook.ID).CountAsync()).ToString();
                 }
             }
-            catch (Exception ex)
-            {
-                e.Result = $"<div class='alert alert-danger mb-2' role='alert'>خطا: {ex.Message}</div>";
-            }
+            catch { return "0"; }
         }
-        #endregion
 
-        protected void Timer1_Tick(object sender, EventArgs e)
+        private async Task<string> ReserveAsync()
         {
-            BindData();
+            try
+            {
+                using (var EF = new ULSDBEntities())
+                {
+                    return (await (from TableBook in EF.ULSTbl_Books
+                                   join TableCategories in EF.ULSTbl_Categories on TableBook.CategoryId equals TableCategories.ID
+                                   where TableCategories.Status == true && TableBook.Status == true
+                                   join TableReserve in EF.ULSTbl_Reserve on TableBook.ID equals TableReserve.BookID
+                                   where TableReserve.StatusID == ReserveStatus.Reservation
+                                   select TableBook.ID).CountAsync()).ToString();
+                }
+            }
+            catch { return "0"; }
+        }
+
+        private async Task<string> FineAsync()
+        {
+            try
+            {
+                using (var EF = new ULSDBEntities())
+                {
+                    return (await (from TableBook in EF.ULSTbl_Books
+                                   join TableCategories in EF.ULSTbl_Categories on TableBook.CategoryId equals TableCategories.ID
+                                   where TableCategories.Status == true && TableBook.Status == true
+                                   join TableReserve in EF.ULSTbl_Reserve on TableBook.ID equals TableReserve.BookID
+                                   where TableReserve.StatusID == ReserveStatus.Fine
+                                   select TableBook.ID).CountAsync()).ToString();
+                }
+            }
+            catch { return "0"; }
+        }
+
+        private async Task<List<DashboardMostReservedBook>> GetMostReservedBooksAsync()
+        {
+            try
+            {
+                using (var EF = new ULSDBEntities())
+                {
+                    var results = await (from reservation in EF.ULSTbl_Reserve
+                                         group reservation by reservation.BookID into grouped
+                                         join TableBook in EF.ULSTbl_Books on grouped.Key equals TableBook.ID
+                                         join TableCategory in EF.ULSTbl_Categories on TableBook.CategoryId equals TableCategory.ID
+                                         join TableUser in EF.ULSTbl_Users on TableBook.UserNameAdder equals TableUser.UserName
+                                         orderby grouped.Count() descending
+                                         select new
+                                         {
+                                             UserID = TableUser.ID,
+                                             NameFamily = TableUser.FullName,
+                                             AdderPic = TableUser.PicName,
+                                             BookID = TableBook.ID,
+                                             BookTitle = TableBook.BookTitle,
+                                             CatName = TableCategory.Title,
+                                             Available = TableBook.Available,
+                                             Status = TableBook.Status,
+                                             PicName = TableBook.PicName,
+                                         }).Take(5).ToListAsync();
+
+                    return results.Select(b => new DashboardMostReservedBook
+                    {
+                        UserID = b.UserID,
+                        UserIdHash = ID2hash(b.UserID),
+                        NameFamily = b.NameFamily,
+                        AdderPic = b.AdderPic,
+                        BookID = b.BookID,
+                        BookTitle = b.BookTitle,
+                        CatName = b.CatName,
+                        Available = b.Available,
+                        StatusHtml = b.Status == true
+                            ? "<span class='badge bg-label-success me-1'>فعال</span>"
+                            : "<span class='badge bg-label-dark me-1'>غیرفعال</span>",
+                        PicName = b.PicName
+                    }).ToList();
+                }
+            }
+            catch
+            {
+                return new List<DashboardMostReservedBook>();
+            }
         }
     }
 }

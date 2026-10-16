@@ -81,12 +81,19 @@
   }
 })();
 
+// Utility: Promise-based delay (replaces setTimeout callback hell)
+function delay(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
 // Card reload (jquery)
 // --------------------------------------------------------------------
 $(function () {
   const cardReload = $('.card-reload');
   if (cardReload.length) {
-    cardReload.on('click', function (e) {
+    cardReload.on('click', async function (e) {
       e.preventDefault();
       var $this = $(this);
       $this.closest('.card').block({
@@ -102,17 +109,17 @@ $(function () {
           opacity: 0.55
         }
       });
-      setTimeout(function () {
-        $this.closest('.card').unblock();
-        if ($this.closest('.card').find('.card-alert').length) {
-          $this
-            .closest('.card')
-            .find('.card-alert')
-            .html(
-              '<div class="alert alert-solid-danger alert-dismissible fade show" role="alert"><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button><strong>انجام شد!</strong> پیام موفقیت / خطا در اینجا.</div>'
-            );
-        }
-      }, 2500);
+      // Replaced nested setTimeout callback with async/await using Promise-based delay
+      await delay(2500);
+      $this.closest('.card').unblock();
+      if ($this.closest('.card').find('.card-alert').length) {
+        $this
+          .closest('.card')
+          .find('.card-alert')
+          .html(
+            '<div class="alert alert-solid-danger alert-dismissible fade show" role="alert"><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button><strong>انجام شد!</strong> پیام موفقیت / خطا در اینجا.</div>'
+          );
+      }
     });
   }
 });

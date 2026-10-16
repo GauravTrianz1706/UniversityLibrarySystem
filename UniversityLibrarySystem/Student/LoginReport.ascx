@@ -1,11 +1,20 @@
-﻿<%@ Control Language="C#" AutoEventWireup="true" CodeBehind="LoginReport.ascx.cs" Inherits="UniversityLibrarySystem.Student.LoginReport" %>
-<form runat="server">
-    <asp:Literal ID="LiteralMsg" runat="server"></asp:Literal>
+@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
+@* Removed: <%@ Control %> directive, runat="server", asp:ListView, asp:LinqDataSource, asp:Button Web Forms controls *@
+@* Replaced: Web Forms server controls with standard HTML and Razor syntax *@
+@using Classes
+@model UniversityLibrarySystem.Student.LoginReportModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+<form method="post">
+    @Html.AntiForgeryToken()
+    @if (!string.IsNullOrEmpty(Model.LiteralMsg))
+    {
+        @Html.Raw(Model.LiteralMsg)
+    }
     <div class="row m-2">
         <h4>گزارش ورود</h4>
         <div>
             <a href="ChangePassword" class="btn btn-primary me-1 my-2">تغییر کلمه عبور</a>
-            <asp:Button ID="btnDeleteAllDevice" runat="server" Text="خروج از تمام دستگاه‌ها" CssClass="btn btn-danger mx-1 my-2" OnClick="btnDeleteAllDevice_Click" />
+            <button type="submit" asp-page-handler="DeleteAllDevice" class="btn btn-danger mx-1 my-2">خروج از تمام دستگاه‌ها</button>
             <div class="table-responsive card text-nowrap">
                 <table class="table table-striped">
                     <thead>
@@ -15,20 +24,16 @@
                         </tr>
                     </thead>
                     <tbody class="table-border-bottom-0">
-                        <asp:ListView ID="ProuductDefualt" runat="server" DataSourceID="LinqDataSourceNews"
-                            ItemPlaceholderID="brandplacea42">
-                            <LayoutTemplate>
-                                <asp:PlaceHolder ID="brandplacea42" runat="server"></asp:PlaceHolder>
-                            </LayoutTemplate>
-                            <ItemTemplate>
+                        @if (Model.DeviceList != null)
+                        {
+                            @foreach (var item in Model.DeviceList)
+                            {
                                 <tr>
-                                    <td><%#Eval("BrowserName")%></td>
-                                    <td dir="ltr"><%#Eval("DateTime")%></td>
+                                    <td>@Html.Raw(item.BrowserName)</td>
+                                    <td dir="ltr">@item.DateTime</td>
                                 </tr>
-                            </ItemTemplate>
-                        </asp:ListView>
-                        <asp:LinqDataSource ID="LinqDataSourceNews" runat="server" OnSelecting="LinqDataSourceNews_Selecting">
-                        </asp:LinqDataSource>
+                            }
+                        }
                     </tbody>
                 </table>
             </div>
@@ -36,4 +41,3 @@
     </div>
     <script>window.history.replaceState(null, null, window.location.href.split('?')[0]);</script>
 </form>
-

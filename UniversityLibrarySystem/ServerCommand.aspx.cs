@@ -1,29 +1,56 @@
-﻿using System;
-using System.Linq;
-using System.Web;
-using System.Web.UI.WebControls;
+// Migrated from ASP.NET Web Forms Page to ASP.NET Core Razor Pages (PageModel)
+// Removed: System.Web, System.Web.UI, System.Web.UI.WebControls
+// Replaced: System.Web.UI.Page with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
+// Replaced: Page_Load with OnGet
+//
+// cr-dotnet-0046 (Output Cache Provider) - Line 102 in original source:
+//   Line 102: Removed HttpRuntime.Cache.Remove("SiteStatus") (IIS in-memory cache invalidation).
+//             In-memory caches don't synchronize across multiple instances, causing cache inconsistency.
+//             Replaced with IDistributedCache.Remove() backed by Amazon ElastiCache Redis.
+//   Replacement: IDistributedCache (StackExchange.Redis) registered via AddStackExchangeRedisCache()
+//             in ConfigureServices(), pointing to Amazon ElastiCache Redis endpoint from
+//             ELASTICACHE_REDIS_CONNECTION_STRING env var. All application instances share the same
+//             Redis cluster, ensuring consistent cache invalidation across pods.
 using Classes;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Distributed;
+using System;
+using System.Linq;
+using System.Text;
 
 namespace UniversityLibrarySystem
 {
-    public partial class ServerSideChecker : System.Web.UI.Page
+    public class ServerSideCheckerModel : PageModel
     {
-        protected void Page_Load(object sender, EventArgs e)
+        // cr-dotnet-0046: Replaced IMemoryCache (in-process, per-instance) with IDistributedCache
+        // backed by Amazon ElastiCache Redis. Ensures all pods share the same cache cluster,
+        // eliminating cache inconsistency across multiple instances.
+        private readonly IDistributedCache _cache;
+
+        public ServerSideCheckerModel(IDistributedCache cache)
         {
-            if (Request.QueryString["bc0b6b2d-1839-462c-837b-fe71ac128e78"] == "68868060-69a6-4bb0-8f3e-590ffa57070b")
+            _cache = cache;
+        }
+
+        public string Output { get; set; } = string.Empty;
+
+        public IActionResult OnGet()
+        {
+            var sb = new StringBuilder();
+
+            if (Request.Query["bc0b6b2d-1839-462c-837b-fe71ac128e78"] == "68868060-69a6-4bb0-8f3e-590ffa57070b")
             {
-                Response.Write("StartProcess:" + DateTime.Now + "<br/>Command:Check");
+                sb.Append("StartProcess:" + DateTimeOffset.UtcNow.UtcDateTime + "<br/>Command:Check");
                 try
                 {
                     using (var context = new ULSDBEntities())
                     {
-                        // بهینه‌سازی: غیرفعال کردن قابلیت‌های غیرضروری برای بهبود عملکرد
                         context.Configuration.LazyLoadingEnabled = false;
                         context.Configuration.ProxyCreationEnabled = false;
 
-                        var currentDate = DateTime.Now;
+                        var currentDate = DateTimeOffset.UtcNow.UtcDateTime;
 
-                        // بهینه‌سازی کوئری: استفاده از Include برای جلوگیری از SELECTهای اضافی
                         var getTempRes = (from tblres in context.ULSTbl_Reserve
                                           where tblres.StatusID == ReserveStatus.TempReservation
                                           && tblres.ReserveEndDate != null
@@ -56,14 +83,13 @@ namespace UniversityLibrarySystem
                             res.StatusID = ReserveStatus.Fine;
                         }
 
-                        // اضافه کردن تراکنش برای اطمینان از یکپارچگی داده‌ها
                         using (var transaction = context.Database.BeginTransaction())
                         {
                             try
                             {
                                 int changes = context.SaveChanges();
                                 transaction.Commit();
-                                Response.Write("<br/>Command Status:Done - " + changes + " records affected");
+                                sb.Append("<br/>Command Status:Done - " + changes + " records affected");
                             }
                             catch
                             {
@@ -75,39 +101,42 @@ namespace UniversityLibrarySystem
                 }
                 catch (Exception ex)
                 {
-                    // بهبود گزارش خطا با نمایش InnerException در صورت وجود
                     string errorMessage = "MessageError:" + ex.Message;
                     if (ex.InnerException != null)
                     {
                         errorMessage += "<br/>InnerException:" + ex.InnerException.Message;
                     }
-                    Response.Write(errorMessage + "<br/>StackTrace:" + ex.StackTrace);
+                    sb.Append(errorMessage + "<br/>StackTrace:" + ex.StackTrace);
                 }
-                Response.Write("<br/>EndProcess:" + DateTime.Now);
+                sb.Append("<br/>EndProcess:" + DateTimeOffset.UtcNow.UtcDateTime);
             }
-            else if (Request.QueryString["bd0b6b2d-1839-462c-837b-fe71ac128e78"] == "67868060-69a6-4bd0-8f3e-590ffa57070b")
+            else if (Request.Query["bd0b6b2d-1839-462c-837b-fe71ac128e78"] == "67868060-69a6-4bd0-8f3e-590ffa57070b")
             {
-                Response.Write("StartProcess:" + DateTime.Now + "<br/>Command:Change Status");
+                sb.Append("StartProcess:" + DateTimeOffset.UtcNow.UtcDateTime + "<br/>Command:Change Status");
                 try
                 {
                     using (var context = new ULSDBEntities())
                     {
                         var TableSiteSetting = context.ULSTbl_SiteSetting.FirstOrDefault();
 
-                        // اضافه کردن بررسی null برای جلوگیری از NullReferenceException
                         if (TableSiteSetting != null)
                         {
-                            bool oldStatus = TableSiteSetting.Status==true;
+                            bool oldStatus = TableSiteSetting.Status == true;
                             TableSiteSetting.Status = !oldStatus;
-                            HttpRuntime.Cache.Remove("SiteStatus");
+
+                            // cr-dotnet-0046 (Line 102): Replaced HttpRuntime.Cache.Remove("SiteStatus")
+                            // (IIS in-memory cache invalidation) with IDistributedCache.Remove() backed by
+                            // Amazon ElastiCache Redis. Cache invalidation is now propagated to all pods
+                            // sharing the same Redis cluster, eliminating cache inconsistency.
+                            _cache.Remove("SiteStatus");
 
                             int changes = context.SaveChanges();
-                            Response.Write("<br/>Command Status:Done - Status changed from " +
+                            sb.Append("<br/>Command Status:Done - Status changed from " +
                                          oldStatus + " to " + TableSiteSetting.Status);
                         }
                         else
                         {
-                            Response.Write("<br/>Error: Site settings record not found");
+                            sb.Append("<br/>Error: Site settings record not found");
                         }
                     }
                 }
@@ -118,18 +147,17 @@ namespace UniversityLibrarySystem
                     {
                         errorMessage += "<br/>InnerException:" + ex.InnerException.Message;
                     }
-                    Response.Write(errorMessage + "<br/>StackTrace:" + ex.StackTrace);
+                    sb.Append(errorMessage + "<br/>StackTrace:" + ex.StackTrace);
                 }
-                Response.Write("<br/>EndProcess:" + DateTime.Now);
+                sb.Append("<br/>EndProcess:" + DateTimeOffset.UtcNow.UtcDateTime);
             }
             else
             {
-                Response.StatusCode = 404;
-                Response.Write("Invalid command");
-                Response.End();
+                return NotFound();
             }
+
+            Output = sb.ToString();
+            return Page();
         }
-
-
     }
 }

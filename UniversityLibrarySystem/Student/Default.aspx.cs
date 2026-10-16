@@ -1,91 +1,69 @@
-﻿using Classes;
+// Migrated from ASP.NET Web Forms Page to ASP.NET Core Razor Pages (PageModel)
+// Removed: System.Web, System.Web.Security, System.Web.UI, System.Web.UI.WebControls
+// Replaced: System.Web.UI.Page with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
+// Replaced: Page_Load with OnGet
+// Replaced: Membership API with ASP.NET Core Identity / HttpContext.User
+// Replaced: Response.Redirect with RedirectToPage
+using Classes;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Web;
-using System.Web.Security;
-using System.Web.UI;
-using System.Web.UI.WebControls;
 
 namespace UniversityLibrarySystem.Student
 {
-    public partial class Default : System.Web.UI.Page
+    public class DefaultModel : PageModel
     {
-        protected void Page_Load(object sender, EventArgs e)
+        public string CurrentDate { get; set; } = string.Empty;
+        public string ProfileHtml { get; set; } = string.Empty;
+        public string FinanceAlert { get; set; } = string.Empty;
+        public string PageContent { get; set; } = string.Empty;
+
+        public IActionResult OnGet(string page = null)
         {
             if (!SiteConfig.siteStatus())
             {
                 Response.StatusCode = 503;
-                Response.End();
+                return StatusCode(503);
             }
-            Page.Title = SiteConfig.mixTitle("پنل داشنجو");
-            try
-            {
-                if (Membership.GetUser() == null)
-                {
-                    Response.Redirect("/");
-                }
-            }
-            catch { }
-            try
-            {
-                if (RouteData.Values["Page"] != null)
-                {
-                    UserControl ctr = Page.LoadControl(RouteData.Values["Page"].ToString() + ".ascx") as UserControl;
-                    ctr.ID = RouteData.Values["Page"].ToString();
-                    PanelLoad.Controls.Add(ctr);
-                }
-                else
-                {
-                    Response.Redirect("./Books", false);
-                    Context.ApplicationInstance.CompleteRequest(); // end response
-                }
-            }
-            catch (HttpCompileException)
-            {
-                try
-                {
-                    UserControl ctr = Page.LoadControl("../PAPAssets/Pages/CompileError.ascx") as UserControl;
-                    ctr.ID = RouteData.Values["Page"].ToString();
-                    PanelLoad.Controls.Add(ctr);
-                }
-                catch
-                { }
-            }
-            catch (HttpException)
-            {
-                try
-                {
-                    UserControl ctr = Page.LoadControl("../PAPAssets/Pages/NotFoundPage.ascx") as UserControl;
-                    ctr.ID = RouteData.Values["Page"].ToString();
-                    PanelLoad.Controls.Add(ctr);
-                }
-                catch
-                { }
-            }
-            catch
-            {
 
+            ViewData["Title"] = SiteConfig.mixTitle("پنل داشنجو");
+
+            string username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return Redirect("/");
             }
+
+            CurrentDate = DateTimeOffset.UtcNow.UtcDateTime.ToLongDateString();
+            ProfileHtml = BuildProfile(username);
+            FinanceAlert = CheckFinance(username);
+
+            if (!string.IsNullOrEmpty(page))
+            {
+                PageContent = $"<partial name='Student/{page}' />";
+            }
+            else
+            {
+                return RedirectToPage("./Books");
+            }
+
+            return Page();
         }
 
-        public string Date() => DateTime.Now.ToLongDateString();
-
-        public string Profile()
+        private string BuildProfile(string username)
         {
             try
             {
                 using (var EF = new ULSDBEntities())
                 {
-                    string UserId = Membership.GetUser().UserName.ToLower();
-
                     var qGetUser = (from item in EF.ULSTbl_Users
-                                    where item.UserName == UserId
+                                    where item.UserName == username
                                     select item).FirstOrDefault();
 
-                    string text = "";
+                    if (qGetUser == null) return string.Empty;
 
-                    text += @"<li class='nav-item navbar-dropdown dropdown-user dropdown'>
+                    string text = @"<li class='nav-item navbar-dropdown dropdown-user dropdown'>
                                     <a class='nav-link dropdown-toggle hide-arrow' href='javascript:void(0);' data-bs-toggle='dropdown'>
                                         <div id='user-avatar' class='avatar avatar-online'>
                                             <img src='../img/users/" + qGetUser.PicName + @"' alt class='rounded-circle'>
@@ -139,56 +117,33 @@ namespace UniversityLibrarySystem.Student
                                 </li>";
 
                     return text;
-
                 }
             }
             catch
             {
-                return "";
+                return string.Empty;
             }
         }
 
-        public static string checkFinance()
+        private string CheckFinance(string username)
         {
-            using (ULSDBEntities EF = new ULSDBEntities())
+            try
             {
-                string username = Membership.GetUser().UserName;
-                var query = (from res in EF.ULSTbl_Reserve
-                             where res.UserName == username && res.StatusID == ReserveStatus.Fine
-                             select res).Count();
-                if (query > 0)
+                using (ULSDBEntities EF = new ULSDBEntities())
                 {
-                    return @"<div class=""alert alert-danger"" role=""alert"">
+                    var query = (from res in EF.ULSTbl_Reserve
+                                 where res.UserName == username && res.StatusID == ReserveStatus.Fine
+                                 select res).Count();
+                    if (query > 0)
+                    {
+                        return @"<div class=""alert alert-danger"" role=""alert"">
   شما در حال جریمه هستید! لطفاً اقدامات لازم را جهت تسویه حساب انجام دهید. <a id=""btnGoFine"" class=""btn btn-danger"" href=""./Books?Mode=3"">مشاهده جریمه ها</a>
 </div>";
+                    }
                 }
             }
-            return "";
+            catch { }
+            return string.Empty;
         }
-
-        //public static bool CheckUserPermision(string UserName, string PageEnglishName)
-        //{
-        //    using (var EF = new ULSDBEntities())
-        //    {
-        //        var CheckPage = (from PermissionPages in EF.PAPTbl_PermissionPages
-        //                         where PermissionPages.PageName.ToLower() == PageEnglishName.ToLower()
-        //                         select new { PermissionPages.ID }).FirstOrDefault();
-        //        if (CheckPage == null)
-        //            return true;
-
-        //        var Check = (from PermissionUsers in EF.PAPTbl_PermissionUsers
-        //                     join PermissionPages in EF.PAPTbl_PermissionPages
-        //                     on PermissionUsers.PageId equals PermissionPages.ID
-        //                     where PermissionUsers.UserName.ToLower() == UserName.ToLower()
-        //                     && PermissionPages.PageName.ToLower() == PageEnglishName.ToLower()
-        //                     && PermissionPages.IsPermission == true
-        //                     select PermissionUsers).FirstOrDefault();
-
-        //        if (Check != null)
-        //            return true;
-
-        //        return false;
-        //    }
-        //}
     }
 }

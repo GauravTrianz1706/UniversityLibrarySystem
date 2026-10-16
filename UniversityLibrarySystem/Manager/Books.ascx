@@ -1,9 +1,11 @@
-﻿<%@ Control Language="C#" AutoEventWireup="true" CodeBehind="Books.ascx.cs" Inherits="UniversityLibrarySystem.Manager.Books" %>
+@* Migrated from ASP.NET Web Forms UserControl (<%@ Control %>) to ASP.NET Core Razor partial view *@
+@* This file replaces Manager/Books.ascx as a Razor partial view *@
+@model UniversityLibrarySystem.Manager.BooksViewModel
 <style>
     .activepage {
         line-height: 2;
         text-align: center;
-        min-width: calc( 2.0075rem + 0px );
+        min-width: calc(2.0075rem + 0px);
         border-color: #00cfdd;
         background-color: #00cfdd;
         color: #fff;
@@ -13,7 +15,6 @@
         border-top-left-radius: 0.25rem;
         border-bottom-left-radius: 0.25rem;
     }
-
     .noactivepage {
         border-top-right-radius: 0.25rem;
         border-bottom-right-radius: 0.25rem;
@@ -34,323 +35,187 @@
             y = y.replace(rgx, '$1' + ',' + '$2');
         return y + z;
     }
-</script>
-<script type="text/javascript">
     function previewFile() {
-
-        var preview = document.querySelector('#<%=ImageNopic.ClientID %>');
-        var file = document.querySelector('#<%=fileUploadPic.ClientID %>').files[0];
+        var preview = document.querySelector('#fileUploadPicPreview');
+        var file = document.querySelector('#fileUploadPic').files[0];
         var reader = new FileReader();
-
-        reader.onloadend = function () {
-            preview.src = reader.result;
-        }
-
-        if (file) {
-            reader.readAsDataURL(file);
-
-        } else {
-            preview.src = "../img/Error/no-photo.png";
-        }
+        reader.onloadend = function () { preview.src = reader.result; }
+        if (file) { reader.readAsDataURL(file); } else { preview.src = "../img/Error/no-photo.png"; }
     }
 </script>
 <div class="content-wrapper">
-    <!-- Content -->
-
     <div class="container-xxl flex-grow-1 container-p-y">
-        <h4 class="py-3 breadcrumb-wrapper mb-4">مدیریت کتاب ها
-        </h4>
-        <div class="mb-0">
-            <asp:Panel ID="PanelSearch" runat="server">
-                <asp:Literal ID="literalForSearch" runat="server"></asp:Literal>
-                <form action="Books">
+        <h4 class="py-3 breadcrumb-wrapper mb-4">مدیریت کتاب ها</h4>
+        @if (!string.IsNullOrEmpty(Model.AlertMessage))
+        {
+            <div class="alert alert-@Model.AlertType mb-2" role="alert">@Html.Raw(Model.AlertMessage)</div>
+        }
+        @if (Model.ShowList)
+        {
+            <div class="mb-0">
+                <form action="Books" method="get">
                     <div class="row">
                         <div class="col-12" style="display: block ruby;">
                             <div class="col-5 py-1">
-                                <input id="text2" name="txtText" type="text" class="form-control" placeholder="عنوان">
+                                <input id="text2" name="txtText" type="text" class="form-control" placeholder="عنوان" value="@Model.SearchText">
                             </div>
                             <div class="col-5 py-1">
-                                <input id="text3" name="txtISBNForSearch" type="text" class="form-control" placeholder="شابک">
+                                <input id="text3" name="txtISBNForSearch" type="text" class="form-control" placeholder="شابک" value="@Model.SearchIsbn">
                             </div>
                             <div class="col-5 py-1">
                                 <button type="submit" class="btn btn-success"><i class="bx bx-search-alt-2"></i>&nbsp;جستجو</button>
                             </div>
-
                         </div>
                     </div>
                 </form>
-            </asp:Panel>
-            <form action="Books">
-                <input id="Text1" name="Value" value="New" hidden="hidden" type="text" />
-                <button id="btnAdd" runat="server" class="btn btn-primary my-2"><i class="bx bx-plus"></i>&nbsp;درج جدید</button>
-                <br />
-                <asp:Literal ID="LiteralMessage" runat="server"></asp:Literal>
-            </form>
-        </div>
-        <form runat="server">
-            <asp:ScriptManager ID="ScriptManager1" runat="server"></asp:ScriptManager>
-            <asp:MultiView ID="MultiViewMain" runat="server">
-                <asp:View ID="ViewMain" runat="server">
-                    <!-- Striped Rows -->
-                    <div class="card">
-                        <div class="table-responsive text-nowrap">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>درج کننده</th>
-                                        <th>تصویر کتاب</th>
-                                        <th>عنوان</th>
-                                        <th>دسته بندی</th>
-                                        <th>تعداد موجود</th>
-                                        <th>وضعیت</th>
-                                        <th>تاریخ درج</th>
-                                        <th>عمل‌ها</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="table-border-bottom-0">
-                                    <asp:ListView ID="ProuductDefualt" runat="server" DataSourceID="LinqDataSourceNews"
-                                        ItemPlaceholderID="brandplacea42">
-                                        <LayoutTemplate>
-                                            <asp:PlaceHolder ID="brandplacea42" runat="server"></asp:PlaceHolder>
-                                        </LayoutTemplate>
-                                        <ItemTemplate>
-                                            <tr>
-                                                <td>
-                                                    <ul class="list-unstyled users-list m-0 avatar-group d-flex align-items-center">
-                                                        <li data-bs-toggle="tooltip" data-popup="tooltip-custom" data-bs-placement="top" class="avatar avatar-xs pull-up" title="" data-bs-original-title="<%#Eval("NameFamily")%>">
-                                                            <img src="../img/users/<%#Eval("AdderPic")%>" style="min-width: 26px;" alt="Avatar" class="rounded-circle">
-                                                        </li>
-                                                        <a style="color: #000;" href="./Manager?Edit=<%# ID2hash(Eval("UserID"))%>"><%#Eval("NameFamily")%></a>
-                                                    </ul>
-                                                </td>
-                                                <td>
-                                                    <div class="avatar mr-1 avatar-xl">
-                                                        <a class="example-image-link" href='../img/Book/<%#Eval("PicName")%>'
-                                                            data-lightbox='MainCategory<%#Eval("ID")%>' data-title='تصویر کتاب با کد <%#Eval("ID") %>'>
-                                                            <img class="example-image" onerror="this.src='../img/Error/no-photo.png'"
-                                                                src='../img/Books/<%#Eval("PicName")%>' alt="" /></a>
-                                                    </div>
-                                                </td>
-                                                <td><%#Eval("BookTitle")%></td>
-                                                <td><%#Eval("CatName")%></td>
-                                                <td><%#Eval("Available")%></td>
-                                                <%# Status(Eval("ID"))%>
-                                                <td><%#((DateTime)Eval("DateInsert")).ToShortDateString()%></td>
-                                                <td>
-                                                    <div class="dropdown">
-                                                        <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown">
-                                                            <i class="bx bx-dots-vertical-rounded"></i>
-                                                        </button>
-                                                        <div class="dropdown-menu">
-                                                            <a class="dropdown-item" href="./Books?Edit=<%# ID2hash(Eval("ID"))%>"><i class="bx bx-edit-alt me-1"></i>مشاهده / ویرایش</a>
-                                                            <a class="dropdown-item" href="./Books?Delete=<%# ID2hash(Eval("ID"))%>"><i class="bx bx-trash me-1"></i>حذف</a>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        </ItemTemplate>
-                                    </asp:ListView>
-                                    <asp:LinqDataSource ID="LinqDataSourceNews" runat="server" OnSelecting="LinqDataSourceNews_Selecting">
-                                    </asp:LinqDataSource>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="col-lg-4" style="padding: 1rem;">
-                            <nav aria-label="Page navigation">
-                                <asp:DataPager ID="DataPager1" runat="server" class="pagination pagination-info" style="display: flex;" PagedControlID="ProuductDefualt" PageSize="45">
-                                    <Fields>
-                                        <asp:NumericPagerField CurrentPageLabelCssClass="activepage" NextPageText=""
-                                            PreviousPageText="" NumericButtonCssClass="page-link noactivepage" ButtonType="Button" />
-                                    </Fields>
-                                </asp:DataPager>
-                            </nav>
-                        </div>
-                    </div>
-                    <!--/ Striped Rows -->
-                    <script>
-                        function setUrl() {
-                            const urlParams = new URLSearchParams(window.location.search);
-                            var txtText = urlParams.get("txtText")
-                            var txtISBNForSearch = urlParams.get("txtISBNForSearch")
-                            if (txtText) {
-                                document.getElementById("text2").value = txtText;
+                <form action="Books" method="get">
+                    <input name="Value" value="New" hidden="hidden" type="text" />
+                    <button type="submit" class="btn btn-primary my-2"><i class="bx bx-plus"></i>&nbsp;درج جدید</button>
+                </form>
+            </div>
+            <div class="card">
+                <div class="table-responsive text-nowrap">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>درج کننده</th>
+                                <th>تصویر کتاب</th>
+                                <th>عنوان</th>
+                                <th>دسته بندی</th>
+                                <th>تعداد موجود</th>
+                                <th>وضعیت</th>
+                                <th>تاریخ درج</th>
+                                <th>عمل‌ها</th>
+                            </tr>
+                        </thead>
+                        <tbody class="table-border-bottom-0">
+                            @foreach (var book in Model.Books)
+                            {
+                                <tr>
+                                    <td>
+                                        <ul class="list-unstyled users-list m-0 avatar-group d-flex align-items-center">
+                                            <li class="avatar avatar-xs pull-up">
+                                                <img src="../img/users/@book.AdderPic" style="min-width: 26px;" alt="Avatar" class="rounded-circle">
+                                            </li>
+                                            <a style="color: #000;" href="./Manager?Edit=@book.UserIdHash">@book.NameFamily</a>
+                                        </ul>
+                                    </td>
+                                    <td>
+                                        <div class="avatar mr-1 avatar-xl">
+                                            <img class="example-image" onerror="this.src='../img/Error/no-photo.png'"
+                                                src='../img/Books/@book.PicName' alt="" />
+                                        </div>
+                                    </td>
+                                    <td>@book.BookTitle</td>
+                                    <td>@book.CatName</td>
+                                    <td>@book.Available</td>
+                                    <td>@Html.Raw(book.StatusHtml)</td>
+                                    <td>@book.DateInsert.ToShortDateString()</td>
+                                    <td>
+                                        <div class="dropdown">
+                                            <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown">
+                                                <i class="bx bx-dots-vertical-rounded"></i>
+                                            </button>
+                                            <div class="dropdown-menu">
+                                                <a class="dropdown-item" href="./Books?Edit=@book.IdHash"><i class="bx bx-edit-alt me-1"></i>مشاهده / ویرایش</a>
+                                                <a class="dropdown-item" href="./Books?Delete=@book.IdHash"><i class="bx bx-trash me-1"></i>حذف</a>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
                             }
-                            if (txtISBNForSearch) {
-                                document.getElementById("text3").value = txtISBNForSearch;
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-lg-4" style="padding: 1rem;">
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination pagination-info" style="display: flex;">
+                            @for (int p = 1; p <= Model.TotalPages; p++)
+                            {
+                                <li class="page-item @(p == Model.CurrentPage ? "active" : "")">
+                                    <a class="page-link @(p == Model.CurrentPage ? "activepage" : "noactivepage")"
+                                       href="?page=@p@(!string.IsNullOrEmpty(Model.SearchText) ? "&txtText=" + Model.SearchText : "")@(!string.IsNullOrEmpty(Model.SearchIsbn) ? "&txtISBNForSearch=" + Model.SearchIsbn : "")">@p</a>
+                                </li>
                             }
-                        }
-                        setUrl();
-                        function clearUrlParams() {
-                            var currentUrl = window.location.href;
-                            var baseUrl = currentUrl.split('?')[0];
-                            window.history.replaceState(null, null, baseUrl);
-                        }
-                        clearUrlParams();
-                    </script>
-                </asp:View>
-                <asp:View ID="ViewFileds" runat="server">
-                    <div class="col-12">
-                        <div class="card mb-4">
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="mb-3 col-md-12">
-                                        <label for="fileUploadPic" class="form-label">تصویر</label><br />
-                                        <asp:Image ID="ImageNopic" runat="server" ImageUrl="../img/Error/no-photo.png"
-                                            Style="max-width: 256px" />
-                                        <br />
-                                        <asp:Button ID="btnResetPic" CssClass="btn btn-danger my-2" OnClick="btnResetPic_Click" runat="server" Text="بازشناسی تصویر کتاب" />
-                                        <div class="col-6">
-                                            <asp:FileUpload ID="fileUploadPic" accept="image/*" onChange="previewFile()" runat="server" class="form-control" />
-                                        </div>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        }
+        @if (Model.ShowForm)
+        {
+            <form method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="EditHash" value="@Model.EditHash" />
+                <div class="col-12">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="mb-3 col-md-12">
+                                    <label class="form-label">تصویر</label><br />
+                                    <img id="fileUploadPicPreview" src="@(string.IsNullOrEmpty(Model.CurrentPicUrl) ? "../img/Error/no-photo.png" : Model.CurrentPicUrl)" style="max-width: 256px" /><br />
+                                    <div class="col-6">
+                                        <input type="file" id="fileUploadPic" name="fileUploadPic" accept="image/*" onchange="previewFile()" class="form-control" />
                                     </div>
-                                    <!-- Mapp scripts -->
-                                    <div class="col-xl-6 col-md-6 col-sm-12 mb-4">
-                                        <label class="form-label" for="phone-number-mask">دسته اصلی</label>
-                                        <div>
-                                            <asp:UpdatePanel ID="UpdatePanel2" runat="server">
-                                                <ContentTemplate>
-                                                    <asp:DropDownList CssClass="form-select" ID="drpCategory" name="drpBlogGroup"
-                                                        runat="server" DataSourceID="LinqDataSourcedrpCategory" DataTextField="Title"
-                                                        DataValueField="ID" AutoPostBack="true">
-                                                    </asp:DropDownList>
-                                                    <asp:LinqDataSource ID="LinqDataSourcedrpCategory" runat="server" OnSelecting="LinqDataSourcedrpCategory_Selecting">
-                                                    </asp:LinqDataSource>
-                                                </ContentTemplate>
-                                            </asp:UpdatePanel>
-                                        </div>
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-sm-12 mb-4">
+                                    <label class="form-label">دسته اصلی</label>
+                                    <select class="form-select" name="CategoryId">
+                                        @foreach (var cat in Model.Categories)
+                                        {
+                                            <option value="@cat.ID" @(cat.ID == Model.SelectedCategoryId ? "selected" : "")>@cat.Title</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-sm-12 mb-4">
+                                    <label class="form-label">نام و نام خانوادگی نویسنده</label>
+                                    <input type="text" name="AuthorName" class="form-control" placeholder="نام و نام خانوادگی نویسنده" value="@Model.AuthorName" required minlength="2" maxlength="50">
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-sm-12">
+                                    <label class="form-label">تعداد کتاب موجود</label>
+                                    <input type="number" name="Count" class="form-control" value="@Model.Count" min="1" max="999999999" placeholder="تعداد کتاب موجود">
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-sm-12">
+                                    <label class="form-label">عنوان کتاب</label>
+                                    <input type="text" name="BookTitle" maxlength="100" class="form-control" placeholder="عنوان کتاب" value="@Model.BookTitle" required minlength="2">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">نام مترجم</label>
+                                    <input type="text" name="TranslatorName" class="form-control" placeholder="نام مترجم" value="@Model.TranslatorName">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">ناشر</label>
+                                    <input type="text" name="PublisherName" class="form-control" placeholder="ناشر" value="@Model.PublisherName" required minlength="2" maxlength="50">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">شابک</label>
+                                    <input type="text" name="ISBN" class="form-control" placeholder="شابک" value="@Model.ISBN" @(Model.IsEdit ? "readonly" : "") required pattern="^(?=(?:\D*\d){10}(?:(?:\D*\d){3})?$)[\d-]+$">
+                                </div>
+                                <div class="col-xl-12 col-md-6 col-sm-12 mb-4">
+                                    <label class="form-label">وضعیت</label>
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" name="Status" id="chkStatus" @(Model.Status ? "checked" : "")>
+                                        <label class="form-check-label" for="chkStatus">وضعیت</label>
                                     </div>
-
-                                    <div class="col-xl-6 col-md-6 col-sm-12 mb-4">
-                                        <label class="form-label" for="txtAuthor">نام و نام خانوادگی نویسنده</label>
-                                        <div class="col-lg-10 col-9">
-                                            <input type="text" id="txtAuthor" runat="server" class="form-control" placeholder="نام و نام خانوادگی نویسنده">
-                                            <asp:RequiredFieldValidator ID="RequiredFieldValidator2" runat="server"
-                                                ControlToValidate="txtAuthor"
-                                                ErrorMessage="نام نویسنده الزامی است"
-                                                CssClass="badge bg-label-danger"
-                                                Display="Dynamic" />
-                                            <asp:RegularExpressionValidator ID="revAuthor" runat="server"
-                                                ControlToValidate="txtAuthor"
-                                                ErrorMessage="نام نویسنده باید بین ۲ تا ۵۰ حرف باشد"
-                                                ValidationExpression="^.{2,50}$"
-                                                CssClass="badge bg-label-danger"
-                                                Display="Dynamic" />
-                                        </div>
+                                </div>
+                                <div class="col-xl-12 col-md-6 col-sm-12 mb-4">
+                                    <label class="form-label">ویژه</label>
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" name="IsSpecial" id="chkSpecial" @(Model.IsSpecial ? "checked" : "")>
+                                        <label class="form-check-label" for="chkSpecial">ویژه</label>
                                     </div>
-
-                                    <div class="col-xl-6 col-md-6 col-sm-12">
-                                        <div class="form-group row align-items-center">
-                                            <label class="form-label" for="txtTedad">تعداد کتاب موجود</label>
-                                            <div class="col-lg-10 col-9">
-                                                <input type="text" id="txtTedad" runat="server" class="form-control" value="1" placeholder="تعداد کتاب موجود">
-
-                                                <asp:RangeValidator runat="server" ID="RangeValidator2" ControlToValidate="txtTedad" MinimumValue="1" MaximumValue="999999999" Type="Integer" ErrorMessage="لطفاً مقداری بین 1 و 999999999 وارد کنید." CssClass="badge bg-label-danger"></asp:RangeValidator>
-
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="col-xl-6 col-md-6 col-sm-12">
-                                        <div class="form-group row align-items-center">
-                                            <label class="form-label" for="txtTitle">عنوان کتاب</label>
-                                            <div class="col-lg-10 col-9">
-                                                <input type="text" id="txtTitle" maxlength="100" runat="server" class="form-control" placeholder="عنوان کتاب">
-                                                <asp:RequiredFieldValidator ID="rfvTitle" runat="server"
-                                                    ControlToValidate="txtTitle"
-                                                    ErrorMessage="عنوان کتاب الزامی است"
-                                                    CssClass="badge bg-label-danger"
-                                                    Display="Dynamic" />
-                                                <asp:RegularExpressionValidator ID="RegularExpressionValidator1" runat="server"
-                                                    ControlToValidate="txtTitle"
-                                                    ErrorMessage="عنوان کتاب باید بین 2 تا 100 حرف باشد"
-                                                    ValidationExpression="^.{2,100}$"
-                                                    CssClass="badge bg-label-danger"
-                                                    Display="Dynamic" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group row align-items-center">
-                                            <label class="form-label" for="txtTranslatorName">نام مترجم</label>
-
-                                            <div class="col-lg-10 col-9">
-                                                <input type="text" id="txtTranslatorName" runat="server" class="form-control" placeholder="نام مترجم">
-                                                <asp:RegularExpressionValidator ID="RegularExpressionValidator3" runat="server"
-                                                    ControlToValidate="txtTranslatorName"
-                                                    ErrorMessage="نام مترجم باید بین 2 تا 50 حرف باشد"
-                                                    ValidationExpression="^.{2,50}$"
-                                                    CssClass="badge bg-label-danger"
-                                                    Display="Dynamic" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group row align-items-center">
-                                            <label class="form-label" for="txtPublisher">ناشر</label>
-                                            <div class="col-lg-10 col-9">
-                                                <input type="text" id="txtPublisher" runat="server" class="form-control" placeholder="ناشر">
-                                                <asp:RequiredFieldValidator ID="RequiredFieldValidator1" runat="server"
-                                                    ControlToValidate="txtPublisher"
-                                                    ErrorMessage="نام ناشر الزامی است"
-                                                    CssClass="badge bg-label-danger"
-                                                    Display="Dynamic" />
-                                                <asp:RegularExpressionValidator ID="RegularExpressionValidator2" runat="server"
-                                                    ControlToValidate="txtPublisher"
-                                                    ErrorMessage="نام ناشر باید بین 2 تا 50 حرف باشد"
-                                                    ValidationExpression="^.{2,50}$"
-                                                    CssClass="badge bg-label-danger"
-                                                    Display="Dynamic" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group row align-items-center">
-                                            <label class="form-label" for="txtISBN">شابک</label>
-
-                                            <div class="col-lg-10 col-9">
-                                                <input type="text" id="txtIsbn" runat="server" class="form-control" placeholder="شابک">
-                                                <asp:RequiredFieldValidator ID="rfvIsbn" runat="server"
-                                                    ControlToValidate="txtIsbn"
-                                                    ErrorMessage="شابک الزامی است"
-                                                    CssClass="badge bg-label-danger"
-                                                    Display="Dynamic" />
-                                                <asp:RegularExpressionValidator ID="revIsbn" runat="server"
-                                                    ControlToValidate="txtIsbn"
-                                                    ErrorMessage="فرمت شابک نامعتبر است"
-                                                    ValidationExpression="^(?=(?:\D*\d){10}(?:(?:\D*\d){3})?$)[\d-]+$"
-                                                    CssClass="badge bg-label-danger"
-                                                    Display="Dynamic" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-xl-12 col-md-6 col-sm-12 mb-4 mb">
-                                        <label class="form-label" for="custom-delimiter-mask">وضعیت</label>
-                                        <div class="form-check form-switch mb-2">
-                                            <input class="form-check-input" runat="server" type="checkbox" id="chkStatus" checked>
-                                            <label class="form-check-label" for="chkStatus">وضعیت</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-xl-12 col-md-6 col-sm-12 mb-4 mb">
-                                        <label class="form-label" for="custom-delimiter-mask">ویژه</label>
-                                        <div class="form-check form-switch mb-2">
-                                            <input class="form-check-input" runat="server" type="checkbox" id="chkSpecial" checked>
-                                            <label class="form-check-label" for="chkSpecial">ویژه</label>
-                                        </div>
-                                        <!-- Custom Delimiters -->
-                                        <hr class="my-4 mx-n4">
-                                        <div class="pt-4">
-                                            <asp:Button ID="btnSubmit" CssClass="btn btn-primary me-sm-3 me-1" runat="server" Text="ثبت" OnClick="btnSubmit_Click" />
-                                            <asp:Button ID="btnCancel" CssClass="btn btn-label-secondary" runat="server" Text="بازگشت" OnClick="btnCancel_Click" />
-                                        </div>
+                                    <hr class="my-4 mx-n4">
+                                    <div class="pt-4">
+                                        <button type="submit" class="btn btn-primary me-sm-3 me-1">ثبت</button>
+                                        <a href="./Books" class="btn btn-label-secondary">بازگشت</a>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </asp:View>
-            </asp:MultiView>
-        </form>
+                </div>
+            </form>
+        }
     </div>
-    <!-- / Content -->
     <div class="content-backdrop fade"></div>
 </div>

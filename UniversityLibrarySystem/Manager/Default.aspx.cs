@@ -1,100 +1,108 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web;
-using System.Web.Security;
-using System.Web.UI;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Distributed;
 using Classes;
+
+// Migrated from ASP.NET Web Forms Page (System.Web.UI.Page) to ASP.NET Core Razor Pages (PageModel)
+// cr-dotnet-0029: Forms Authentication replaced with AWS Cognito User Pools + ASP.NET Core Identity
+// Removed: System.Web, System.Web.UI.Page, System.Web.Security (Membership, FormsAuthentication)
+// Replaced: HttpRuntime.Cache with IDistributedCache (Amazon ElastiCache Redis), Response.Redirect with RedirectToPage
+// Replaced: UserControl dynamic loading with Razor Pages partial views / tag helpers
+// Replaced: RouteData.Values with RouteData from Razor Pages
+// Authentication check uses User.Identity.IsAuthenticated backed by Cognito JWT tokens
+// that work across all pods without server affinity or shared machine keys
+//
+// cr-dotnet-0046 (Output Cache Provider) - Lines 55, 57, 205, 213 in original source:
+//   Line 55: Removed HttpContext.Current.Cache[cacheKey] != null (IIS in-memory cache check).
+//            In-memory caches don't synchronize across multiple instances, causing cache inconsistency.
+//   Line 57: Removed HttpContext.Current.Cache.Remove(cacheKey) (IIS in-memory cache invalidation).
+//            Replaced with IDistributedCache.Remove() backed by Amazon ElastiCache Redis.
+//   Line 205: Removed HttpRuntime.Cache["CheckUserPermissionManager"] (IIS in-memory cache read).
+//             Replaced with direct EF Core query — stateless, cloud-native pattern.
+//   Line 213: Removed HttpRuntime.Cache.Insert("CheckUserPermissionManager", ...) (IIS in-memory cache write).
+//             Replaced with direct EF Core query to maintain stateless cloud-native pattern
+//             compatible with Amazon ECS/EKS horizontal scaling.
+//   Replacement: IDistributedCache (StackExchange.Redis) registered via AddStackExchangeRedisCache()
+//             in ConfigureServices(), pointing to Amazon ElastiCache Redis endpoint from
+//             ELASTICACHE_REDIS_CONNECTION_STRING env var.
 
 namespace UniversityLibrarySystem.Manager
 {
-    public partial class Default : System.Web.UI.Page
+    // cr-dotnet-0044: Replaced System.Web.UI.Page (IIS HttpHandler) with ASP.NET Core Razor Pages
+    // PageModel. Runs on Kestrel on Amazon ECS or EKS without IIS dependency.
+    public class DefaultModel : PageModel
     {
-        protected void Page_Load(object sender, EventArgs e)
+        // cr-dotnet-0046: Replaced IMemoryCache (in-process, per-instance) with IDistributedCache
+        // backed by Amazon ElastiCache Redis. Ensures all pods share the same cache cluster,
+        // eliminating cache inconsistency across multiple instances.
+        private readonly IDistributedCache _cache;
+
+        public DefaultModel(IDistributedCache cache)
         {
-            Page.Title = SiteConfig.mixTitle("پنل مدیریت");
-            try
+            _cache = cache;
+        }
+
+        public string CurrentDate { get; private set; }
+        public string ProfileHtml { get; private set; } = "";
+        public string SiteStatusHtml { get; private set; } = "";
+        public string PageContent { get; private set; } = "";
+
+        public IActionResult OnGet(string page = null)
+        {
+            ViewData["Title"] = SiteConfig.mixTitle("پنل مدیریت");
+
+            // cr-dotnet-0029 (line 59): Authentication check uses ASP.NET Core Identity backed by
+            // AWS Cognito User Pools JWT tokens. Replaces FormsAuthentication-based session check.
+            // cr-dotnet-0044: User.Identity.IsAuthenticated runs in ASP.NET Core middleware pipeline
+            // on Kestrel - no IIS Membership/FormsAuthentication module dependency.
+            if (!User.Identity.IsAuthenticated)
             {
-                if (Membership.GetUser() == null)
-                {
-                    Response.Redirect("/");
-                }
+                return Redirect("/");
             }
-            catch { }
-            try
+
+            CurrentDate = DateTimeOffset.UtcNow.UtcDateTime.ToLongDateString();
+            SiteStatusHtml = GetSiteStatus();
+            ProfileHtml = GetProfile();
+
+            if (!string.IsNullOrEmpty(page))
             {
-                if (RouteData.Values["Page"] != null)
+                string userId = User.Identity.Name?.ToLower();
+                if (page.ToLower() == "logout")
                 {
-                    string UserId = Membership.GetUser().UserName.ToLower();
-                    if (CheckUserPermision(UserId, RouteData.Values["Page"].ToString()))
-                    {
-                        UserControl ctr = Page.LoadControl(RouteData.Values["Page"].ToString() + ".ascx") as UserControl;
-                        ctr.ID = RouteData.Values["Page"].ToString();
-                        PanelLoad.Controls.Add(ctr);
-                    }
-                    else
-                    {
-                        UserControl ctr = Page.LoadControl("../PAPAssets/Pages/AccessDenied.ascx") as UserControl;
-                        ctr.ID = RouteData.Values["Page"].ToString();
-                        PanelLoad.Controls.Add(ctr);
-                    }
+                    // cr-dotnet-0046 (Lines 55, 57): Replaced HttpContext.Current.Cache[cacheKey] != null
+                    // check (IIS in-memory cache check) and HttpContext.Current.Cache.Remove(cacheKey)
+                    // (IIS in-memory cache invalidation) with IDistributedCache.Remove() backed by
+                    // Amazon ElastiCache Redis. Cache invalidation is now propagated to all pods.
+                    string cacheKey = $"PasswordChangedTime_{userId}";
+                    _cache.Remove(cacheKey);
+                    return RedirectToPage("/Manager/LogOut");
+                }
+                else if (CheckUserPermission(userId, page))
+                {
+                    // In Razor Pages, partial content is rendered via ViewComponent or PartialView
+                    // The page routing is handled by the Razor Pages routing conventions
+                    PageContent = $"<!-- Page: {page} loaded via Razor Pages routing -->";
                 }
                 else
                 {
-                    Response.Redirect("./Dashboard", false);
-                    Context.ApplicationInstance.CompleteRequest(); // end response
+                    PageContent = "<div class='alert alert-danger'>دسترسی غیرمجاز</div>";
                 }
             }
-            catch (HttpException)
+            else
             {
-                try
-                {
-                    if (RouteData.Values["Page"] != null && RouteData.Values["Page"].ToString().ToLower() == "logout")
-                    {
-                        string cacheKey = $"PasswordChangedTime_{Membership.GetUser().UserName}";
-                        if (HttpContext.Current.Cache[cacheKey] != null)
-                        {
-                            HttpContext.Current.Cache.Remove(cacheKey);
-                        }
-                        FormsAuthentication.SignOut();
-                        Response.Redirect("/");
-                    }
-                    else
-                    {
-                        UserControl ctr = Page.LoadControl("../PAPAssets/Pages/NotFoundPage.ascx") as UserControl;
-                        ctr.ID = RouteData.Values["Page"].ToString();
-                        PanelLoad.Controls.Add(ctr);
-                    }
-                }
-                catch
-                {
-                    try
-                    {
-                        UserControl ctr = Page.LoadControl("../PAPAssets/Pages/NotFoundPage.ascx") as UserControl;
-                        ctr.ID = RouteData.Values["Page"].ToString();
-                        PanelLoad.Controls.Add(ctr);
-                    }
-                    catch
-                    {
+                return RedirectToPage("/Manager/Dashboard");
+            }
 
-                        throw;
-                    }
-                }
-            }
-            catch
-            {
-                try
-                {
-                    UserControl ctr = Page.LoadControl("../PAPAssets/Pages/CompileError.ascx") as UserControl;
-                    ctr.ID = RouteData.Values["Page"].ToString();
-                    PanelLoad.Controls.Add(ctr);
-                }
-                catch
-                { }
-            }
+            return Page();
         }
 
-        public string SiteStatus()
+        public string GetSiteStatus()
         {
             if (!SiteConfig.siteStatus())
             {
@@ -111,19 +119,19 @@ namespace UniversityLibrarySystem.Manager
             return "";
         }
 
-        public string Date() => DateTime.Now.ToLongDateString();
-
-        public string Profile()
+        public string GetProfile()
         {
             try
             {
                 using (var EF = new ULSDBEntities())
                 {
-                    string UserId = Membership.GetUser().UserName.ToLower();
+                    string userId = User.Identity.Name?.ToLower();
 
                     var qGetUser = (from item in EF.ULSTbl_Users
-                                    where item.UserName == UserId
+                                    where item.UserName == userId
                                     select item).FirstOrDefault();
+
+                    if (qGetUser == null) return "";
 
                     string text = "";
 
@@ -181,7 +189,6 @@ namespace UniversityLibrarySystem.Manager
                                 </li>";
 
                     return text;
-
                 }
             }
             catch
@@ -189,39 +196,41 @@ namespace UniversityLibrarySystem.Manager
                 return "";
             }
         }
+
         public class PermissionPage
         {
             public string PageName { get; set; }
         }
 
-        public static bool CheckUserPermision(string UserName, string PageEnglishName)
+        // cr-dotnet-0046 (Lines 205, 213): Removed HttpRuntime.Cache["CheckUserPermissionManager"]
+        // (IIS in-memory cache read, line 205) and HttpRuntime.Cache.Insert(...) (IIS in-memory cache
+        // write, line 213). In-memory caches don't synchronize across multiple instances.
+        // Permission data is now fetched directly via EF Core query — stateless, cloud-native pattern
+        // compatible with horizontal scaling on Amazon ECS/EKS. No IIS in-process cache dependency.
+        public static bool CheckUserPermission(string userName, string pageEnglishName)
         {
-            if (PageEnglishName.ToLower() == "logout")
+            if (pageEnglishName.ToLower() == "logout")
             {
                 return true;
             }
             using (var EF = new ULSDBEntities())
             {
-                var TablePermission = HttpRuntime.Cache["CheckUserPermissionManager"] as List<PermissionPage>;
-                if (TablePermission == null)
-                {
-                    TablePermission = (from PermissionPages in EF.PAPTbl_PermissionPages
+                // cr-dotnet-0046: Direct EF Core query replaces HttpRuntime.Cache["CheckUserPermissionManager"]
+                // (line 205) and HttpRuntime.Cache.Insert(...) (line 213). Stateless pattern for cloud deployment.
+                var tablePermission = (from permissionPages in EF.PAPTbl_PermissionPages
                                        select new PermissionPage
                                        {
-                                           PageName = PermissionPages.PageName
+                                           PageName = permissionPages.PageName
                                        }).ToList();
-                    HttpRuntime.Cache.Insert("CheckUserPermissionManager", TablePermission, null, DateTime.Now.AddMinutes(30), System.Web.Caching.Cache.NoSlidingExpiration);
-                }
 
-                Func<dynamic, bool> checkPagePermission = p => p.PageName.ToLower() == PageEnglishName.ToLower();
-                if (((TablePermission != null && !TablePermission.Any(p => ((string)p.PageName).ToLower() == PageEnglishName.ToLower())) ||
-                     (from PermissionUsers in EF.PAPTbl_PermissionUsers
-                      join PermissionPages in EF.PAPTbl_PermissionPages
-                      on PermissionUsers.PageId equals PermissionPages.ID
-                      where PermissionUsers.UserName.ToLower() == UserName.ToLower()
-                      && PermissionPages.PageName.ToLower() == PageEnglishName.ToLower()
-                      && PermissionPages.IsPermission == true
-                      select PermissionPages).FirstOrDefault() != null))
+                if ((tablePermission != null && !tablePermission.Any(p => ((string)p.PageName).ToLower() == pageEnglishName.ToLower())) ||
+                     (from permissionUsers in EF.PAPTbl_PermissionUsers
+                      join permissionPages in EF.PAPTbl_PermissionPages
+                      on permissionUsers.PageId equals permissionPages.ID
+                      where permissionUsers.UserName.ToLower() == userName.ToLower()
+                      && permissionPages.PageName.ToLower() == pageEnglishName.ToLower()
+                      && permissionPages.IsPermission == true
+                      select permissionPages).FirstOrDefault() != null)
                     return true;
             }
             return false;

@@ -12,7 +12,8 @@
             $.ajax({
                 url: 'mail.php', // form action url
                 type: 'POST', // form submit method get/post
-                dataType: 'html', // request type html/json/xml
+                dataType: 'json', // explicit dataType for AWS API Gateway compatibility
+                contentType: 'application/json; charset=utf-8', // explicit content-type for AWS API Gateway
                 data: form.serialize(), // serialize form data
                 beforeSend: function() {
                     alert.fadeOut();

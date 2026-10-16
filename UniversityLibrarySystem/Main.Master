@@ -1,14 +1,13 @@
-﻿<%@ Master Language="C#" AutoEventWireup="true" CodeBehind="Main.master.cs" Inherits="UniversityLibrarySystem.Main" %>
-
+@* Migrated from ASP.NET Web Forms Master Page (<%@ Master %>) to ASP.NET Core Razor Layout *@
+@* This file replaces Main.Master and serves as the shared layout (_Layout.cshtml) *@
 <!DOCTYPE html>
-
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head runat="server">
+<head>
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="<%="\""+GetShortAboutUs()+"\""%> />
+    <meta name="description" content="@ViewBag.ShortAboutUs" />
     <link rel="shortcut icon" type="image/x-icon" href="img/logo/favicon.png">
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/owl.carousel.min.css">
@@ -20,75 +19,66 @@
     <link rel="stylesheet" href="css/slick.css">
     <link rel="stylesheet" href="css/nice-select.css">
     <link rel="stylesheet" href="css/style.css">
-
-    <asp:ContentPlaceHolder ID="head" runat="server">
-    </asp:ContentPlaceHolder>
+    @RenderSection("head", required: false)
 </head>
 <body>
-
     <header>
         <div class="header-area">
-            <div class="main-header ">
-                <div class="header-top ">
+            <div class="main-header">
+                <div class="header-top">
                     <div class="container">
                         <div class="row">
                             <div class="col-xl-12">
                                 <div class="d-flex justify-content-between align-items-center flex-sm">
                                     <div class="header-info-left d-flex align-items-center">
-
                                         <div class="logo" style="font-size: large; color: #3f51b5;">
                                             <a href="/">
-                                                <img src="img/logo/logo.png" alt="<%=Classes.SiteConfig.getSiteName() %>" />
+                                                <img src="img/logo/logo.png" alt="@Classes.SiteConfig.getSiteName()" />
                                             </a>
                                         </div>
                                         <form action="search" method="get" class="form-box">
-                                            <input type="text" name="BookName"
-                                                placeholder="جستجوی کتاب براساس نویسنده یا انتشارات">
+                                            <input type="text" name="BookName" placeholder="جستجوی کتاب براساس نویسنده یا انتشارات">
                                             <div class="search-icon">
                                                 <button class="ti-search search-btn"></button>
                                             </div>
                                         </form>
                                     </div>
                                     <div class="header-info-right d-flex align-items-center">
-                                        <asp:MultiView ID="MultiViewBtns" ActiveViewIndex="0" runat="server">
-                                            <asp:View runat="server">
-                                                <a href="register" class="btn header-btn ml-5">ثبت نام</a>
-                                                <a href="login" class="btn header-btn mr-5">ورود</a>
-                                            </asp:View>
-                                            <asp:View runat="server">
-                                                <a href="Student/Books" class="btn header-btn">پنل دانشجو</a>
-                                            </asp:View>
-                                            <asp:View runat="server">
-                                                <a href="Manager/Dashboard" class="btn header-btn">پنل مدیریت</a>
-                                            </asp:View>
-                                        </asp:MultiView>
+                                        @if (!User.Identity.IsAuthenticated)
+                                        {
+                                            <a href="register" class="btn header-btn ml-5">ثبت نام</a>
+                                            <a href="login" class="btn header-btn mr-5">ورود</a>
+                                        }
+                                        else if (User.IsInRole("User"))
+                                        {
+                                            <a href="Student/Books" class="btn header-btn">پنل دانشجو</a>
+                                        }
+                                        else
+                                        {
+                                            <a href="Manager/Dashboard" class="btn header-btn">پنل مدیریت</a>
+                                        }
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <div class="header-bottom  header-sticky">
+                <div class="header-bottom header-sticky">
                     <div class="container">
                         <div class="row align-items-center">
                             <div class="col-xl-12">
-
                                 <div class="logo2">
                                     <a href="/">
-                                        <img src="img/logo/logo.png" alt="<%=Classes.SiteConfig.getSiteName() %>"></a>
+                                        <img src="img/logo/logo.png" alt="@Classes.SiteConfig.getSiteName()"></a>
                                 </div>
-
                                 <div class="main-menu text-center d-none d-lg-block">
                                     <nav>
                                         <ul id="navigation" class="menu">
                                             <li><a href="/">صفحه اصلی</a></li>
-
                                             <li><a href="Categories">دسته بندی</a>
-
                                                 <div class="megadrop">
                                                     <div class="mega-head">
-                                                        <%=CategoriesNavbar() %>
+                                                        @Html.Raw(ViewBag.CategoriesNavbar)
                                                     </div>
                                                 </div>
                                             </li>
@@ -99,8 +89,6 @@
                                     </nav>
                                 </div>
                             </div>
-
-
                             <div class="col-xl-12">
                                 <div class="mobile_menu d-block d-lg-none"></div>
                             </div>
@@ -111,8 +99,7 @@
         </div>
     </header>
     <main>
-        <asp:ContentPlaceHolder ID="ContentPlaceHolder1" runat="server">
-        </asp:ContentPlaceHolder>
+        @RenderBody()
     </main>
     <footer>
         <div class="footer-wrappper section-bg">
@@ -122,15 +109,13 @@
                         <div class="col-xl-3 col-lg-3 col-md-3">
                             <div class="single-footer-caption mb-50">
                                 <div class="single-footer-caption mb-30">
-
                                     <div class="logo" style="font-size: large; color: #3f51b5;">
                                         <a href="/">
-                                            <img src="img/logo/logo.png" alt="<%=Classes.SiteConfig.getSiteName() %>" />
+                                            <img src="img/logo/logo.png" alt="@Classes.SiteConfig.getSiteName()" />
                                         </a>
                                     </div>
-
                                     <div class="footer-social">
-                                        <strong><%=GetShortAboutUs() %></strong>
+                                        <strong>@Html.Raw(ViewBag.ShortAboutUs)</strong>
                                     </div>
                                 </div>
                             </div>
@@ -140,7 +125,7 @@
                                 <div class="footer-tittle">
                                     <h4>دسته بندی</h4>
                                     <ul>
-                                        <%=CategoriesGroup(1) %>
+                                        @Html.Raw(ViewBag.CategoriesGroup1)
                                     </ul>
                                 </div>
                             </div>
@@ -150,7 +135,7 @@
                                 <div class="footer-tittle">
                                     <h4>&nbsp;</h4>
                                     <ul>
-                                        <%=CategoriesGroup(2) %>
+                                        @Html.Raw(ViewBag.CategoriesGroup2)
                                     </ul>
                                 </div>
                             </div>
@@ -171,16 +156,15 @@
                     </div>
                 </div>
             </div>
-
             <div class="footer-bottom-area">
                 <div class="container">
                     <div class="footer-border">
                         <div class="row d-flex align-items-center">
-                            <div class="col-xl-12 ">
+                            <div class="col-xl-12">
                                 <div class="footer-copy-right text-center">
                                     کپی رایت &copy; تمام حقوق محفوظ می باشد | طراحی شده توسط <a
-                                        href="<%=Classes.SiteConfig.getDevLink() %>"
-                                        style="color: rgb(0, 0, 0)" target="_blank" rel="nofollow noopener"><%=Classes.SiteConfig.getDevName() %></a>
+                                        href="@Classes.SiteConfig.getDevLink()"
+                                        style="color: rgb(0, 0, 0)" target="_blank" rel="nofollow noopener">@Classes.SiteConfig.getDevName()</a>
                                 </div>
                             </div>
                         </div>
@@ -189,30 +173,25 @@
             </div>
         </div>
     </footer>
-
     <div id="back-top" style="display: none;">
         <a title="Go to Top" href="#"><i class="fas fa-chevron-up"></i></a>
     </div>
-
     <script src="js/modernizr-3.5.0.min.js"></script>
     <script src="js/jquery-1.12.4.min.js"></script>
     <script src="js/popper.min.js"></script>
     <script src="js/bootstrap.min.js"></script>
-
     <script src="js/owl.carousel.min.js"></script>
     <script src="js/slick.min.js"></script>
     <script src="js/jquery.slicknav.min.js"></script>
-
     <script src="js/wow.min.js"></script>
     <script src="js/jquery.magnific-popup.js"></script>
     <script src="js/jquery.nice-select.min.js"></script>
     <script src="js/jquery.counterup.min.js"></script>
     <script src="js/waypoints.min.js"></script>
-
     <script src="js/jquery.form.js"></script>
     <script src="js/jquery.validate.min.js"></script>
     <script src="js/jquery.ajaxchimp.min.js"></script>
-
     <script src="js/main.js"></script>
+    @RenderSection("scripts", required: false)
 </body>
 </html>

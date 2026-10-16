@@ -1,17 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-using System.Web.UI;
-using System.Web.UI.WebControls;
+// Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages (PageModel)
+// Removed: System.Web, System.Web.UI, System.Web.UI.WebControls, System.Web.UI.UserControl
+// Replaced: System.Web.UI.UserControl with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
+// Replaced: Page_Load with OnGet
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace PAP
 {
-    public partial class CompileError : System.Web.UI.UserControl
+    public class CompileErrorModel : PageModel
     {
-        protected void Page_Load(object sender, EventArgs e)
+        public IActionResult OnGet()
         {
-
+            return Page();
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿<%@ Control Language="C#" AutoEventWireup="true" CodeBehind="ServerMonitor.ascx.cs" Inherits="UniversityLibrarySystem.Manager.ServerMonitor" %>
+﻿@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
 <title>پنل مدیریت منابع سرور</title>
 <style>
     * {

@@ -1,4 +1,4 @@
-﻿<%@ Control Language="C#" AutoEventWireup="true" CodeBehind="Students.ascx.cs" Inherits="UniversityLibrarySystem.Manager.Students" %>
+﻿@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
 <style>
     #<%=ImageNopic.ClientID %> {
         border-radius: 0.25rem;

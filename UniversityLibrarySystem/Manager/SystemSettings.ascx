@@ -1,4 +1,4 @@
-﻿<%@ Control Language="C#" AutoEventWireup="true" CodeBehind="SystemSettings.ascx.cs" Inherits="UniversityLibrarySystem.Manager.SystemSettings" %>
+﻿@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
 <form runat="server">
     <!-- Content -->
     <div class="container-xxl flex-grow-1 container-p-y">

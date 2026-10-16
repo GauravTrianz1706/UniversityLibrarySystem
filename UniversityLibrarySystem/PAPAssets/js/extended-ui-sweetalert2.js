@@ -577,3 +577,49 @@
     };
   }
 })();
+
+// ─── AWS CloudWatch RUM: Global unhandledrejection Handler ───────────────────
+// Catches all uncaught promise rejections (including jQuery $.ajax() .done()/.fail()
+// chains) and forwards structured error events to AWS CloudWatch RUM so that every
+// failure is captured in cloud logging and can trigger CloudWatch Alarms.
+window.addEventListener('unhandledrejection', function (event) {
+  var reason = event.reason;
+  var errorMessage = reason instanceof Error
+    ? reason.message
+    : (typeof reason === 'string' ? reason : JSON.stringify(reason));
+  var errorStack = reason instanceof Error && reason.stack ? reason.stack : '';
+
+  var rumEvent = {
+    type: 'unhandledrejection',
+    timestamp: new Date().toISOString(),
+    message: errorMessage || 'Unhandled promise rejection',
+    stack: errorStack,
+    url: window.location.href,
+    userAgent: navigator.userAgent
+  };
+
+  // Forward to AWS CloudWatch RUM client if initialised
+  if (window.cwr && typeof window.cwr === 'function') {
+    try {
+      window.cwr('recordError', {
+        type: 'unhandledrejection',
+        message: rumEvent.message,
+        stack: rumEvent.stack,
+        metadata: {
+          timestamp: rumEvent.timestamp,
+          url: rumEvent.url,
+          userAgent: rumEvent.userAgent
+        }
+      });
+    } catch (rumErr) {
+      // Silently swallow errors from the RUM client itself to avoid infinite loops
+    }
+  }
+
+  // Always log a structured entry to the browser console for local diagnostics
+  console.error('[CloudWatch RUM] Unhandled promise rejection captured:', rumEvent);
+
+  // Prevent the browser from also logging the default "Uncaught (in promise)" message
+  event.preventDefault();
+});
+// ─────────────────────────────────────────────────────────────────────────────

@@ -9,25 +9,29 @@ document.addEventListener('DOMContentLoaded', function (e) {
   (function () {
     const formAddNewRecord = document.getElementById('form-add-new-record');
 
-    setTimeout(() => {
-      const newRecord = document.querySelector('.create-new'),
-        offCanvasElement = document.querySelector('#add-new-record');
+    // Guard: only run in browser environments to prevent SSR/Lambda crashes
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      var _offCanvasInitTimer = setTimeout(() => {
+        const newRecord = document.querySelector('.create-new'),
+          offCanvasElement = document.querySelector('#add-new-record');
 
-      // To open offCanvas, to add new record
-      if (newRecord) {
-        newRecord.addEventListener('click', function () {
-          offCanvasEl = new bootstrap.Offcanvas(offCanvasElement);
-          // Empty fields on offCanvas open
-          (offCanvasElement.querySelector('.dt-full-name').value = ''),
-            (offCanvasElement.querySelector('.dt-post').value = ''),
-            (offCanvasElement.querySelector('.dt-email').value = ''),
-            (offCanvasElement.querySelector('.dt-date').value = ''),
-            (offCanvasElement.querySelector('.dt-salary').value = '');
-          // Open offCanvas with form
-          offCanvasEl.show();
-        });
-      }
-    }, 200);
+        // To open offCanvas, to add new record
+        if (newRecord) {
+          newRecord.addEventListener('click', function () {
+            offCanvasEl = new bootstrap.Offcanvas(offCanvasElement);
+            // Empty fields on offCanvas open
+            (offCanvasElement.querySelector('.dt-full-name').value = ''),
+              (offCanvasElement.querySelector('.dt-post').value = ''),
+              (offCanvasElement.querySelector('.dt-email').value = ''),
+              (offCanvasElement.querySelector('.dt-date').value = ''),
+              (offCanvasElement.querySelector('.dt-salary').value = '');
+            // Open offCanvas with form
+            offCanvasEl.show();
+          });
+        }
+        _offCanvasInitTimer = null;
+      }, 200);
+    }
 
     // Form validation for Add new record
     fv = FormValidation.formValidation(formAddNewRecord, {
@@ -277,10 +281,10 @@ $(function () {
                 columns: [3, 4, 5, 6, 7],
                 // prevent avatar to be display
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -314,10 +318,10 @@ $(function () {
                 columns: [3, 4, 5, 6, 7],
                 // prevent avatar to be display
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -338,10 +342,10 @@ $(function () {
                 columns: [3, 4, 5, 6, 7],
                 // prevent avatar to be display
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -362,10 +366,10 @@ $(function () {
                 columns: [3, 4, 5, 6, 7],
                 // prevent avatar to be display
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -386,10 +390,10 @@ $(function () {
                 columns: [3, 4, 5, 6, 7],
                 // prevent avatar to be display
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -807,8 +811,12 @@ $(function () {
 
   // Filter form control to default size
   // ? setTimeout used for multilingual table initialization
-  setTimeout(() => {
-    $('.dataTables_filter .form-control').removeClass('form-control-sm');
-    $('.dataTables_length .form-select').removeClass('form-select-sm');
-  }, 300);
+  // Guard: only run in browser environments to prevent SSR/Lambda crashes
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    var _filterResizeTimer = setTimeout(() => {
+      $('.dataTables_filter .form-control').removeClass('form-control-sm');
+      $('.dataTables_length .form-select').removeClass('form-select-sm');
+      _filterResizeTimer = null;
+    }, 300);
+  }
 });

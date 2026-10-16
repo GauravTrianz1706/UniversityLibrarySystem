@@ -1,10 +1,14 @@
-﻿<%@ Page Language="C#" AutoEventWireup="true" CodeBehind="ServerCommand.aspx.cs" Inherits="UniversityLibrarySystem.ServerSideChecker" %>
-
+@* Migrated from ASP.NET Web Forms Page to ASP.NET Core Razor Pages *@
+@page
+@model UniversityLibrarySystem.ServerSideCheckerModel
+@{
+    ViewData["Title"] = "Console";
+}
 <!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head runat="server">
-    <title>Console</title>
+<head>
+    <title>@ViewData["Title"]</title>
     <style>
         :root{
             font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -15,26 +19,20 @@
     </style>
 </head>
 <body>
-    <form id="form1" runat="server">
-        <div>
-            <script>
-                // این تابع پارامترهای URL را پاک می‌کند
-                function clearUrlParams() {
-                    // URL فعلی را دریافت کنید
-                    var currentUrl = window.location.href;
-
-                    // فقط بخش اصلی URL را بدون پارامترها دریافت کنید
-                    var baseUrl = currentUrl.split('.aspx?')[0];
-
-                    // URL جدید را بدون پارامترها تنظیم کنید
-                    window.history.replaceState(null, null, baseUrl);
-                }
-
-                // تابع را فراخوانی کنید تا پارامترهای URL پاک شوند
-                clearUrlParams();
-
-            </script>
-        </div>
-    </form>
+    <div>
+        @if (!string.IsNullOrEmpty(Model.Output))
+        {
+            @Html.Raw(Model.Output)
+        }
+        <script>
+            // این تابع پارامترهای URL را پاک می‌کند
+            function clearUrlParams() {
+                var currentUrl = window.location.href;
+                var baseUrl = currentUrl.split('?')[0];
+                window.history.replaceState(null, null, baseUrl);
+            }
+            clearUrlParams();
+        </script>
+    </div>
 </body>
 </html>

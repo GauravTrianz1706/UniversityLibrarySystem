@@ -1,76 +1,116 @@
-﻿using Classes;
+using Classes;
 using System;
 using System.Linq;
-using System.Web;
-using System.Web.Security;
+using System.Text;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.Caching.Distributed;
+
+// Migrated from ASP.NET Web Forms MasterPage (System.Web.UI.MasterPage) to ASP.NET Core
+// The MasterPage concept is replaced by a Razor Layout (_Layout.cshtml).
+// Logic previously in Page_Load is now provided as a base controller or action filter
+// that populates ViewBag/ViewData for the shared layout.
+// Removed: System.Web, System.Web.Security.Membership, System.Web.UI.MasterPage
+//
+// cr-dotnet-0046 (Output Cache Provider) - Lines 62, 69 in original source:
+//   Line 62: Removed HttpRuntime.Cache["ShortAboutUs"] (IIS in-memory cache check).
+//            In-memory caches don't synchronize across multiple instances, causing cache inconsistency.
+//   Line 69: Removed HttpRuntime.Cache.Insert("ShortAboutUs", ...) (IIS in-memory cache write).
+//            Replaced with IDistributedCache backed by Amazon ElastiCache Redis.
+//   Replacement: IDistributedCache (StackExchange.Redis) registered via AddStackExchangeRedisCache()
+//            in ConfigureServices(), pointing to Amazon ElastiCache Redis endpoint from
+//            ELASTICACHE_REDIS_CONNECTION_STRING env var. All application instances share the same
+//            Redis cluster, ensuring consistent cache state across pods.
 
 namespace UniversityLibrarySystem
 {
-    public partial class Main : System.Web.UI.MasterPage
+    /// <summary>
+    /// Provides shared layout data (previously in Main.Master.cs MasterPage code-behind).
+    /// Migrated to an ASP.NET Core base controller that populates ViewBag for the Razor layout.
+    /// Inheriting controllers call base.OnActionExecuting to populate shared layout data.
+    /// cr-dotnet-0046: IMemoryCache replaced with IDistributedCache backed by Amazon ElastiCache Redis.
+    /// All application instances share the same Redis cluster — consistent cache across pods.
+    /// </summary>
+    public abstract class MainLayoutController : Controller
     {
-        protected void Page_Load(object sender, EventArgs e)
-        {
+        // cr-dotnet-0046: Replaced IMemoryCache (in-process, per-instance) with IDistributedCache
+        // backed by Amazon ElastiCache Redis. Ensures all pods share the same cache cluster,
+        // eliminating cache inconsistency across multiple instances.
+        private readonly IDistributedCache _cache;
 
+        protected MainLayoutController(IDistributedCache cache)
+        {
+            _cache = cache;
+        }
+
+        public override void OnActionExecuting(ActionExecutingContext context)
+        {
+            base.OnActionExecuting(context);
+
+            // Site status check (replaces Page_Load site status logic)
             if (!SiteConfig.siteStatus())
             {
-                if (Membership.GetUser() == null)
+                if (!User.Identity.IsAuthenticated)
                 {
-                    Response.StatusCode = 503;
-                    Response.End();
+                    context.Result = StatusCode(503);
+                    return;
+                }
+                else if (User.IsInRole("User"))
+                {
+                    context.Result = StatusCode(503);
+                    return;
                 }
                 else
                 {
-                    string username = Membership.GetUser().UserName;
-                    if (Roles.GetRolesForUser(username)[0] == "User")
-                    {
-                        Response.StatusCode = 503;
-                        Response.End();
-                    }
-                    else
-                    {
-                        Response.Write(@"<div class=""alert alert-warning text-center text-dark"" role=""alert"">
+                    ViewBag.SiteWarning = @"<div class=""alert alert-warning text-center text-dark"" role=""alert"">
   سامانه غیرفعال است،شما می توانید از طریق <a href=""/Manager/SystemSettings"" class=""text-warning"">تنظیمات سامانه</a> آن را فعال کنید
-</div>");
-                    }
+</div>";
                 }
             }
-            else if (Membership.GetUser() != null)
+            else if (User.Identity.IsAuthenticated && User.IsInRole("Admin"))
             {
-                string username = Membership.GetUser().UserName;
-                if (Roles.GetRolesForUser(username)[0] == "Admin")
+                if (!SiteConfig.siteCanRes())
                 {
-                    if (!SiteConfig.siteCanRes())
-                    {
-                        Response.Write(@"<div class=""alert alert-warning text-center text-dark"" role=""alert"">
+                    ViewBag.SiteWarning = @"<div class=""alert alert-warning text-center text-dark"" role=""alert"">
   سامانه رزرو در حال حاضر غیرفعال است،شما می توانید از طریق <a href=""/Manager/SystemSettings"" class=""text-warning"">تنظیمات سامانه</a> آن را فعال کنید
-</div>");
-                    }
+</div>";
                 }
             }
-            if (Membership.GetUser() != null && Roles.IsUserInRole(Membership.GetUser().UserName, "User"))
-                MultiViewBtns.ActiveViewIndex = 1;
-            else if (Membership.GetUser() != null)
-                MultiViewBtns.ActiveViewIndex = 2;
-            else
-                MultiViewBtns.ActiveViewIndex = 0;
+
+            // Populate shared layout data
+            ViewBag.ShortAboutUs = GetShortAboutUs();
+            ViewBag.CategoriesNavbar = CategoriesNavbar();
+            ViewBag.CategoriesGroup1 = CategoriesGroup(1);
+            ViewBag.CategoriesGroup2 = CategoriesGroup(2);
         }
 
         public string GetShortAboutUs()
         {
             try
             {
-                string result = HttpRuntime.Cache["ShortAboutUs"] as string;
-                if (result == null)
+                // cr-dotnet-0046 (Lines 62, 69): Replaced HttpRuntime.Cache["ShortAboutUs"] (IIS in-memory
+                // cache check, line 62) and HttpRuntime.Cache.Insert("ShortAboutUs", ...) (IIS in-memory
+                // cache write, line 69) with IDistributedCache backed by Amazon ElastiCache Redis.
+                // All application instances share the same Redis cluster — no cache inconsistency.
+                string result = _cache.GetString("ShortAboutUs");
+                if (result != null)
+                    return result;
+
+                using (var EF = new ULSDBEntities())
                 {
-                    using (var EF = new ULSDBEntities())
+                    var qGetAbout = (from item in EF.ULSTbl_SiteSetting
+                                     select item).FirstOrDefault();
+                    if (qGetAbout != null)
                     {
-                        var qGetAbout = (from item in EF.ULSTbl_SiteSetting
-                                         select item).FirstOrDefault();
-                        HttpRuntime.Cache.Insert("ShortAboutUs", qGetAbout.ShortAboutUs, null, DateTime.Now.AddDays(1), System.Web.Caching.Cache.NoSlidingExpiration);
-                        result = qGetAbout.ShortAboutUs;
+                        var cacheOptions = new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(1)
+                        };
+                        _cache.SetString("ShortAboutUs", qGetAbout.ShortAboutUs, cacheOptions);
+                        return qGetAbout.ShortAboutUs;
                     }
                 }
-                return result;
+                return "";
             }
             catch
             {
@@ -83,45 +123,36 @@ namespace UniversityLibrarySystem
             try
             {
                 string html = "";
-                var categories = SiteConfig.GetCategories().Take(12); // دریافت دسته‌بندی‌ها از کش یا پایگاه داده
+                var categories = SiteConfig.GetCategories().Take(12);
 
                 if (categories != null && categories.Any())
                 {
-                    int counter = 1; // شروع شمارش از 1
+                    int counter = 1;
                     var queryGetCategories = categories
-                        .OrderByDescending(c => c.ID) // مرتب‌سازی بر اساس ID به صورت نزولی
-                        .Take(12) // گرفتن ۱۲ دسته‌بندی اول
-                        .Select(c => new { c.ID, c.Title }); // انتخاب فیلدهای مورد نیاز
+                        .OrderByDescending(c => c.ID)
+                        .Take(12)
+                        .Select(c => new { c.ID, c.Title });
 
                     foreach (var category in queryGetCategories)
                     {
-                        if ((counter - 1) % 3 == 0) // شروع یک ستون جدید هر ۳ آیتم
+                        if ((counter - 1) % 3 == 0)
                         {
-                            if (counter != 1) // بستن div و ul قبلی قبل از شروع جدید
-                            {
+                            if (counter != 1)
                                 html += "</ul></div>";
-                            }
                             html += "<div class='col'><ul>";
                         }
-
                         html += @"<li><a href='Categories-" + category.ID + "-" + category.Title + @"'>" + category.Title + @"</a></li>";
-
                         counter++;
                     }
 
-                    // بستن div و ul برای آخرین دسته بندی
                     if ((counter - 1) % 3 != 0)
-                    {
                         html += "</ul></div>";
-                    }
                 }
 
                 return html;
             }
-            catch (System.Web.HttpRequestValidationException)
+            catch
             {
-                Response.StatusCode = 403;
-                Response.End();
                 return "";
             }
         }
@@ -129,67 +160,27 @@ namespace UniversityLibrarySystem
         public string CategoriesGroup(int index)
         {
             string html = "";
-            var categories = SiteConfig.GetCategories().Take(5); // دریافت دسته‌بندی‌ها از کش یا پایگاه داده
+            var categories = SiteConfig.GetCategories().Take(5);
 
             if (categories != null && categories.Any())
             {
                 var queryGetCategories = categories
-                    .OrderByDescending(c => c.ID) // مرتب‌سازی بر اساس ID به صورت نزولی
-                    .Select(c => new { c.ID, c.Title }); // انتخاب فیلدهای مورد نیاز
+                    .OrderByDescending(c => c.ID)
+                    .Select(c => new { c.ID, c.Title });
 
                 if (index == 1)
                 {
-                    // گرفتن ۵ دسته‌بندی اول
-                    var firstGroup = queryGetCategories.Take(5);
-                    foreach (var category in firstGroup)
-                    {
+                    foreach (var category in queryGetCategories.Take(5))
                         html += @"<li><a href='Categories-" + category.ID + "-" + category.Title + @"'>" + category.Title + @"</a></li>";
-                    }
                 }
                 else
                 {
-                    // گرفتن ۵ دسته‌بندی بعدی (با رد کردن ۵ مورد اول)
-                    var secondGroup = queryGetCategories.Skip(5).Take(5);
-                    foreach (var category in secondGroup)
-                    {
+                    foreach (var category in queryGetCategories.Skip(5).Take(5))
                         html += @"<li><a href='Categories-" + category.ID + "-" + category.Title + @"'>" + category.Title + @"</a></li>";
-                    }
                 }
             }
 
             return html;
         }
-
-        //public string ContactUs()
-        //{
-        //    try
-        //    {
-        //        string html = "";
-        //        using (var EF = new UniversityLibrarySystem.ULSDBEntities())
-        //        {
-
-        //            var query = (from tableSiteSettings in EF.ULSTbl_SiteSetting
-        //                         where tableSiteSettings.ID != 0
-        //                         select new
-        //                         {
-        //                             tableSiteSettings.Email,
-        //                             tableSiteSettings.Telephone
-        //                         }).FirstOrDefault();
-        //            if (!string.IsNullOrEmpty(query.Telephone))
-        //            {
-        //                html += @"                                                <li><a href=""tel:" + query.Telephone + @""">تماس</a></li>";
-        //            }
-        //            if (!string.IsNullOrEmpty(query.Email))
-        //            {
-        //                html += @"                                                <li><a href=""mailto:" + query.Email + @""">ایمیل</a></li>";
-        //            }
-        //            return html;
-        //        }
-        //    }
-        //    catch
-        //    {
-        //        return "";
-        //    }
-        //}
     }
 }

@@ -1,9 +1,12 @@
-﻿<%@ Page Language="C#" AutoEventWireup="true" CodeBehind="Default.aspx.cs" Inherits="UniversityLibrarySystem.Manager.Default" %>
-
+@* Migrated from ASP.NET Web Forms Page (System.Web.UI.Page) to ASP.NET Core Razor Pages *@
+@* Removed: <%@ Page %> directive, runat="server" attributes, asp:Panel, Web Forms server controls *@
+@* Authentication and routing now handled by ASP.NET Core middleware and Razor Pages conventions *@
+@page "/Manager/{page?}"
+@model UniversityLibrarySystem.Manager.DefaultModel
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="fa" class="light-style layout-navbar-fixed layout-menu-fixed" dir="rtl" data-assets-path="../PAPAssets/" data-template="vertical-menu-template">
-<head runat="server">
-    <%=PAP.InClude.Top() %>
+<head>
+    @Html.Raw(PAP.InClude.Top())
 </head>
 <body>
     <!-- Layout wrapper -->
@@ -62,13 +65,6 @@
                             <div>مدیریت رزرو ها</div>
                         </a>
                     </li>
-                    <%--                    <li class="menu-header small text-uppercase"><span class="menu-header-text">امور مالی</span></li>
-                    <li class="menu-item">
-                        <a href="./Finance" class="menu-link">
-                            <i class="menu-icon tf-icons bx bxs-wallet"></i>
-                            <div>امور مالی</div>
-                        </a>
-                    </li>--%>
                     <li class="menu-header small text-uppercase"><span class="menu-header-text">مدیریت دانشجویان</span></li>
                     <li class="menu-item">
                         <a href="./Students" class="menu-link">
@@ -151,11 +147,10 @@
 
                         <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
                             <div class="navbar-nav align-items-center">
-                                <p class="mb-1" style="font-size: medium;"><%=Date() %></p>
+                                <p class="mb-1" style="font-size: medium;">@Model.CurrentDate</p>
                             </div>
 
                             <ul class="navbar-nav flex-row align-items-center ms-auto">
-                                <%--<a id="toggle-dark-mode"><i id="icon-toggle-dark-mode" class="bx bx-sm"></i></a>--%>
                                 <!-- User -->
                                 <li class="nav-item dropdown-shortcuts navbar-dropdown dropdown me-2 me-xl-0">
                                     <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
@@ -224,16 +219,10 @@
                                                     <a href="./SystemSettings" class="stretched-link">تنظیمات سامانه</a>
                                                 </div>
                                             </div>
-                                            <div class="ps__rail-x" style="left: 0px; bottom: 0px;">
-                                                <div class="ps__thumb-x" tabindex="0" style="left: 0px; width: 0px;"></div>
-                                            </div>
-                                            <div class="ps__rail-y" style="top: 0px; right: -13px;">
-                                                <div class="ps__thumb-y" tabindex="0" style="top: 0px; height: 0px;"></div>
-                                            </div>
                                         </div>
                                     </div>
                                 </li>
-                                <%=Profile() %>
+                                @Html.Raw(Model.ProfileHtml)
 
                                 <!--/ User -->
                             </ul>
@@ -245,9 +234,9 @@
                 <!-- / Navbar -->
 
                 <!-- Content wrapper -->
-                <%=SiteStatus() %>
+                @Html.Raw(Model.SiteStatusHtml)
                 <div class="content-wrapper">
-                    <asp:Panel ID="PanelLoad" runat="server"></asp:Panel>
+                    @Html.Raw(Model.PageContent)
                 </div>
                 <!-- Content wrapper -->
             </div>
@@ -265,7 +254,6 @@
         function updateUserStatus() {
             const userAvatar = document.getElementById('user-avatar');
             const userAvatarMenu = document.getElementById('user-avatar-menu');
-            const noInternetConnection = document.getElementById('nointernetconnection');
             if (navigator.onLine) {
                 userAvatar.classList.remove('avatar-offline');
                 userAvatar.classList.add('avatar-online');
@@ -285,6 +273,6 @@
         window.addEventListener('online', updateUserStatus);
         window.addEventListener('offline', updateUserStatus);
     </script>
-    <%=PAP.InClude.Bottom() %>
+    @Html.Raw(PAP.InClude.Bottom())
 </body>
 </html>

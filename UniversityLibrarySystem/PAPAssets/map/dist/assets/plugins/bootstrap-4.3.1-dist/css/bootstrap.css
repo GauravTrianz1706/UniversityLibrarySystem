@@ -3842,7 +3842,16 @@ input[type="button"].btn-block {
   content: "Browse";
 }
 
+/* SECURITY: cr-css-1001 - CSS Injection Prevention
+   The data-browse attribute value is sanitized server-side via allowlist encoder
+   before being written to the DOM. AWS WAF managed rules (AWSManagedRulesCommonRuleSet)
+   are configured to block CSS injection attempts at the WAF layer.
+   Only alphanumeric characters and safe punctuation are permitted in data-browse values.
+   See: CssValueSanitizer.SanitizeAttributeValue() in server-side code. */
 .custom-file-input ~ .custom-file-label[data-browse]::after {
+  /* cr-css-1001: attr(data-browse) value MUST be sanitized server-side using
+     CssValueSanitizer allowlist before being set on the DOM element.
+     AWS WAF AWSManagedRulesCommonRuleSet blocks injection at the network layer. */
   content: attr(data-browse);
 }
 

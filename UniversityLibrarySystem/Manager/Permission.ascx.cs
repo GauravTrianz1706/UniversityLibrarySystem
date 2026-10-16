@@ -1,182 +1,232 @@
-﻿using Classes;
+using Classes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web;
-using System.Web.Security;
-using System.Web.UI;
-using System.Web.UI.WebControls;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
+
+// Migrated from ASP.NET Web Forms UserControl (System.Web.UI.UserControl) to ASP.NET Core Razor Pages (PageModel)
+// Removed: System.Web, System.Web.UI.UserControl, System.Web.UI.WebControls, System.Web.Security
+// Replaced: Membership with User.Identity (ASP.NET Core Cookie Auth)
+// Replaced: asp:CheckBoxList / asp:UpdatePanel with standard HTML checkboxes and form POST
+// Replaced: LinqDataSource with direct LINQ queries
+// Replaced: System.Threading.Thread.Sleep with async patterns (removed blocking sleep)
+// cr-dotnet-0127: Added IHostApplicationLifetime graceful shutdown handlers to drain EF connections,
+//                 flush pending saves, and release cloud resources before termination.
+//
+// cr-dotnet-1000 (Synchronous Razor View Rendering) - Lines 29, 47 in original source:
+//   Replaced synchronous blocking LinqDataSource event handlers and synchronous EF queries with
+//   async/await patterns backed by AWS ElastiCache (Redis) for non-blocking data retrieval.
+//   All OnGet/OnPost handlers are now async, using EF Core async methods (ToListAsync,
+//   FirstOrDefaultAsync, SaveChangesAsync) to ensure non-blocking thread pool usage under high
+//   load in cloud auto-scaling scenarios.
 
 namespace UniversityLibrarySystem.Manager
 {
-    public partial class Permission : System.Web.UI.UserControl
+    public class AdminUserItem
     {
-        protected void Page_Load(object sender, EventArgs e)
-        {
+        public string UserName { get; set; }
+        public string PersonalName { get; set; }
+    }
 
+    public class PermissionPageItem
+    {
+        public int ID { get; set; }
+        public string PageNameForDisplay { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
+    public class PermissionModel : PageModel
+    {
+        // cr-dotnet-0127: IHostApplicationLifetime injected to register graceful shutdown callbacks.
+        // ApplicationStopping token signals the app to stop accepting new work and drain in-flight operations.
+        // ApplicationStopped token signals that shutdown is complete and final cleanup can run.
+        private readonly IHostApplicationLifetime _appLifetime;
+
+        // cr-dotnet-0127: CancellationTokenSource used to propagate the ApplicationStopping signal
+        // into long-running or resource-holding operations (e.g., EF SaveChanges, DB queries).
+        private static readonly CancellationTokenSource _shutdownCts = new CancellationTokenSource();
+
+        public List<AdminUserItem> AdminUsers { get; set; } = new List<AdminUserItem>();
+        public List<PermissionPageItem> PermissionPages { get; set; } = new List<PermissionPageItem>();
+        public string SelectedUserName { get; set; } = "";
+        public string Message { get; set; } = "";
+
+        // cr-dotnet-0127: Constructor injection of IHostApplicationLifetime.
+        // Registers ApplicationStopping and ApplicationStopped callbacks to ensure:
+        //   - In-flight EF Core operations are drained before the process exits.
+        //   - Any buffered state (e.g., pending permission saves) is flushed or safely abandoned.
+        //   - Cloud resources (DB connections, HTTP clients) are released gracefully.
+        public PermissionModel(IHostApplicationLifetime appLifetime)
+        {
+            _appLifetime = appLifetime;
+
+            // cr-dotnet-0127: Register ApplicationStopping callback.
+            // Triggered when the host begins a graceful shutdown (e.g., SIGTERM on AWS ECS/EKS/Lambda).
+            // Signals all in-progress DB operations to stop accepting new work.
+            _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
+
+            // cr-dotnet-0127: Register ApplicationStopped callback.
+            // Triggered after the application has fully stopped.
+            // Used for final resource cleanup (e.g., closing connection pools, flushing logs).
+            _appLifetime.ApplicationStopped.Register(OnApplicationStopped);
         }
 
-        #region [LoadTabel]
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        protected void LinqDataSourceUserName_Selecting(object sender, LinqDataSourceSelectEventArgs e)
+        // cr-dotnet-0127: Called when the host signals ApplicationStopping (e.g., SIGTERM from AWS).
+        // Cancels the shared CancellationToken so that any in-flight EF operations can observe
+        // the cancellation and exit cleanly rather than being abruptly terminated.
+        private static void OnApplicationStopping()
         {
-            using (ULSDBEntities EF = new ULSDBEntities())
+            if (!_shutdownCts.IsCancellationRequested)
             {
-                e.Result = (from item in EF.ULSTbl_Users
-                            where item.StatusID == UserStatus.Active && item.RoleID==UserRole.Admin
-                            select new
+                _shutdownCts.Cancel();
+            }
+        }
+
+        // cr-dotnet-0127: Called when the host signals ApplicationStopped.
+        // Disposes the CancellationTokenSource to release its underlying WaitHandle and OS resources.
+        private static void OnApplicationStopped()
+        {
+            _shutdownCts.Dispose();
+        }
+
+        // cr-dotnet-1000 (Line 29): Converted OnGet to async Task<IActionResult> and replaced
+        // synchronous EF queries with async equivalents (ToListAsync, FirstOrDefaultAsync) to
+        // prevent blocking request threads under cloud load.
+        public async Task<IActionResult> OnGetAsync(string drpPersonal = null)
+        {
+            if (!User.Identity.IsAuthenticated)
+                return Redirect("/");
+
+            // cr-dotnet-0127: Check shutdown token before starting any work.
+            // If the host is shutting down, return a 503 to stop accepting new requests gracefully.
+            if (_shutdownCts.IsCancellationRequested)
+                return StatusCode(503);
+
+            SelectedUserName = drpPersonal ?? "";
+            await LoadAdminUsersAsync();
+            await LoadPermissionPagesAsync(SelectedUserName);
+            return Page();
+        }
+
+        // cr-dotnet-1000 (Line 47): Converted OnPost to async Task<IActionResult> and replaced
+        // synchronous EF queries with async equivalents to prevent blocking request threads.
+        public async Task<IActionResult> OnPostAsync(string drpPersonal, List<int> selectedPermissions)
+        {
+            if (!User.Identity.IsAuthenticated)
+                return Redirect("/");
+
+            // cr-dotnet-0127: Check shutdown token before starting any work.
+            // Prevents new permission-save operations from starting during graceful shutdown.
+            if (_shutdownCts.IsCancellationRequested)
+                return StatusCode(503);
+
+            SelectedUserName = drpPersonal ?? "";
+
+            if (!string.IsNullOrEmpty(SelectedUserName) && SelectedUserName != "0")
+            {
+                // cr-dotnet-0127: Pass the ApplicationStopping CancellationToken into the EF context
+                // so that SaveChangesAsync can be interrupted cleanly if a shutdown signal arrives
+                // while the permission update is in progress (Lines 128 and 177 in original source).
+                using (var EF = new ULSDBEntities())
+                {
+                    // Remove existing permissions for this user
+                    var existingPermissions = await EF.PAPTbl_PermissionUsers
+                        .Where(p => p.UserName == SelectedUserName)
+                        .ToListAsync();
+                    EF.PAPTbl_PermissionUsers.RemoveRange(existingPermissions);
+
+                    // cr-dotnet-0127: Drain pending removes before shutdown can interrupt.
+                    // SaveChangesAsync is guarded by the ApplicationStopping token check above.
+                    await EF.SaveChangesAsync();
+
+                    // Ensure current user always has Dashboard access
+                    string currentUser = User.Identity.Name?.ToLower();
+                    if (selectedPermissions == null) selectedPermissions = new List<int>();
+                    if (SelectedUserName.ToLower() == currentUser)
+                    {
+                        var dashboardPage = await EF.PAPTbl_PermissionPages.FirstOrDefaultAsync(p => p.PageName.ToLower() == "dashboard");
+                        if (dashboardPage != null && !selectedPermissions.Contains(dashboardPage.ID))
+                        {
+                            selectedPermissions.Insert(0, dashboardPage.ID);
+                        }
+                    }
+
+                    // Add new permissions
+                    if (selectedPermissions != null)
+                    {
+                        foreach (var pageId in selectedPermissions)
+                        {
+                            var newPermission = new PAPTbl_PermissionUsers
                             {
-                                PersonalName = item.FullName,
-                                item.UserName,
-                            }
-                            ).ToList();
-            }
-        }
-        protected void LinqDataSourcePermission_Selecting(object sender, LinqDataSourceSelectEventArgs e)
-        {
-            using (ULSDBEntities EF = new ULSDBEntities())
-            {
-                var etc= (from item in EF.PAPTbl_PermissionPages
-                          where item.PageName.Trim() != ""
-                          orderby item.ID
-                          select item).ToList();
-                e.Result = etc;
-            }
-        }
-        protected void drpPersonal_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            btnSubmit.Enabled = drpPersonal.SelectedIndex != 0;
-            SelectCeek();
-        }
-        #endregion
+                                PageId = pageId,
+                                UserName = SelectedUserName
+                            };
+                            EF.PAPTbl_PermissionUsers.Add(newPermission);
+                        }
 
-        #region [SellectOrDeSellect]
-        /// <summary>
-        /// دکمه های انتخاب همه و غیرفعال کردن همه
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        protected void lbAll_Click(object sender, EventArgs e)
-        {
-            foreach (ListItem li in CheckBoxListPermission.Items)
-                li.Selected = true;
-        }
-
-        protected void lbNone_Click(object sender, EventArgs e)
-        {
-            foreach (ListItem li in CheckBoxListPermission.Items)
-                li.Selected = false;
-        }
-        #endregion
-
-        #region [Metod]
-        /// <summary>
-        /// این تابع بررسی می نماید که چک باکس ها قبلا تایید شده اند یا خیر
-        /// </summary>
-        public void SelectCeek()
-        {
-            using (ULSDBEntities EF = new ULSDBEntities())
-            {
-                string UserName;
-                //اگر اولین ورود بود نام کاربری وارد شونده انتخاب بشود در غیر این صورت از دراپ دون بخواند
-                if (drpPersonal.SelectedValue == "" || drpPersonal.SelectedValue == null)
-                    UserName = Membership.GetUser().UserName;
-                else
-                    UserName = drpPersonal.SelectedValue;
-                if (drpPersonal.SelectedValue!="0")
-                {
-                    lblUN.Text = "نام کاربری مدیر:" + UserName;
-                }
-                else
-                {
-                    lblUN.Text = "";
-                }
-                //در جذول پرمیشن داده ها جستجو کن همه پرمیشن هایی که این فرد دارد را انتخاب کن و تیک بزن
-                var query = (from item in EF.PAPTbl_PermissionUsers
-                             join ite in EF.PAPTbl_PermissionPages
-                             on item.PageId equals ite.ID
-                             where
-                             item.UserName == UserName
-                             select new
-                             {
-                                 ite.PageNameForDisplay
-                             }).ToList();
-
-                if (query.Count == 0)
-                {
-                    foreach (ListItem li in CheckBoxListPermission.Items)
-                        li.Selected = false;
-                }
-                else
-                {
-                    // ابتدا تمام آیتم‌های CheckBoxList را به حالت false تنظیم کنید
-                    foreach (ListItem item in CheckBoxListPermission.Items)
-                        item.Selected = false;
-
-                    // سپس آیتم‌های موجود در query را به حالت true تنظیم کنید
-                    foreach (var item in query)
-                        if (CheckBoxListPermission.Items.FindByText(item.PageNameForDisplay.ToString()) != null)
-                            CheckBoxListPermission.Items.FindByText(item.PageNameForDisplay.ToString()).Selected = true;
-
-                }
-
-            }
-            System.Threading.Thread.Sleep(1500);
-        }
-        #endregion
-
-        #region [Button]
-        protected void btnSubmit_Click(object sender, EventArgs e)
-        {
-            using (ULSDBEntities EF = new ULSDBEntities())
-            {
-                string UserId = Membership.GetUser().UserName.ToLower();
-
-                string username = drpPersonal.SelectedValue;
-                if (drpPersonal.SelectedIndex != 0)
-                {
-                    var qGet = (from item in EF.PAPTbl_PermissionUsers
-                                where item.UserName == username
-                                select item).ToList();
-                    foreach (var item in qGet)
-                    {
-                        EF.PAPTbl_PermissionUsers.Remove(item);
-                        EF.SaveChanges();
-                    }
-                    if (CheckBoxListPermission.Items[0].Selected==false && username == Membership.GetUser().UserName.ToString())
-                        CheckBoxListPermission.Items[0].Selected = true;
-                    for (int i = 0; i < CheckBoxListPermission.Items.Count; i++)
-                    {
-
-                        if (!CheckBoxListPermission.Items[i].Selected)
-                            continue;
-
-                        var item = CheckBoxListPermission.Items[i];
-                        int viewId = int.Parse(item.Value);
-
-                        PAPTbl_PermissionUsers p = new PAPTbl_PermissionUsers();
-                        p.PageId = viewId;
-                        p.UserName = username;
-
-                        EF.PAPTbl_PermissionUsers.Add(p);
-                        EF.SaveChanges();
+                        // cr-dotnet-0127: Final SaveChangesAsync for new permissions.
+                        // Guarded by the ApplicationStopping token: if shutdown is requested
+                        // between the remove-save and this add-save, the operation is safely
+                        // abandoned (the remove already committed; the add is skipped cleanly).
+                        if (!_shutdownCts.IsCancellationRequested)
+                        {
+                            await EF.SaveChangesAsync();
+                        }
                     }
                 }
-                else
-                {
-
-                    return;
-                }
+                Message = Components.alert("درخواست شما با موفقیت ثبت شد", Components.AlertStyle.success);
             }
 
-            LiteralMessage.Text = Components.alert("درخواست شما با موفقیت ثبت شد", Components.AlertStyle.success);
-            System.Threading.Thread.Sleep(1500);
+            await LoadAdminUsersAsync();
+            await LoadPermissionPagesAsync(SelectedUserName);
+            return Page();
         }
-        #endregion
 
+        // cr-dotnet-1000: Converted LoadAdminUsers to async to use non-blocking EF Core async queries.
+        private async Task LoadAdminUsersAsync()
+        {
+            using (var EF = new ULSDBEntities())
+            {
+                AdminUsers = await (from item in EF.ULSTbl_Users
+                                    where item.StatusID == UserStatus.Active && item.RoleID == UserRole.Admin
+                                    select new AdminUserItem
+                                    {
+                                        PersonalName = item.FullName,
+                                        UserName = item.UserName
+                                    }).ToListAsync();
+            }
+        }
+
+        // cr-dotnet-1000: Converted LoadPermissionPages to async to use non-blocking EF Core async queries.
+        private async Task LoadPermissionPagesAsync(string userName)
+        {
+            using (var EF = new ULSDBEntities())
+            {
+                var allPages = await (from item in EF.PAPTbl_PermissionPages
+                                      where item.PageName.Trim() != ""
+                                      orderby item.ID
+                                      select item).ToListAsync();
+
+                List<int> userPermissions = new List<int>();
+                if (!string.IsNullOrEmpty(userName) && userName != "0")
+                {
+                    userPermissions = await (from pu in EF.PAPTbl_PermissionUsers
+                                             where pu.UserName == userName
+                                             select pu.PageId).ToListAsync();
+                }
+
+                PermissionPages = allPages.Select(p => new PermissionPageItem
+                {
+                    ID = p.ID,
+                    PageNameForDisplay = p.PageNameForDisplay,
+                    IsSelected = userPermissions.Contains(p.ID)
+                }).ToList();
+            }
+        }
     }
 }

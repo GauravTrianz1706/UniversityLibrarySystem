@@ -1,14 +1,14 @@
-﻿<%@ Page Language="C#" AutoEventWireup="true" CodeBehind="Dash.aspx.cs" Inherits="UniversityLibrarySystem.Dash" %>
+@page "/Dash"
+@model UniversityLibrarySystem.DashModel
 
 <!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head runat="server">
+<head>
+    <title>@ViewData["Title"]</title>
 </head>
 <body>
-    <form id="form1" runat="server">
-        <div>
-        </div>
-    </form>
+    <div>
+    </div>
 </body>
 </html>

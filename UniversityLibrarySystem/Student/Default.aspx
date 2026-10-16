@@ -1,9 +1,14 @@
-﻿<%@ Page Language="C#" AutoEventWireup="true" CodeBehind="Default.aspx.cs" Inherits="UniversityLibrarySystem.Student.Default" %>
+@* Migrated from ASP.NET Web Forms Page to ASP.NET Core Razor Pages *@
+@* Removed: <%@ Page %> directive, runat="server", asp:Panel Web Forms controls *@
+@* Replaced: Web Forms page lifecycle with Razor Pages model *@
+@page
+@model UniversityLibrarySystem.Student.DefaultModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="fa" class="light-style layout-navbar-fixed layout-menu-fixed" dir="rtl" data-theme="theme-default-dark" data-assets-path="../PAPAssets/" data-template="vertical-menu-template">
-<head runat="server">
-    <%=PAP.InClude.Top() %>
+<head>
+    @Html.Raw(PAP.InClude.Top())
 </head>
 <body>
     <!-- Layout wrapper -->
@@ -56,22 +61,22 @@
                             </li>
                             <li class="menu-item">
                                 <a href="./Books?Mode=1" class="menu-link">
-                                    <div><%=Classes.ReserveStatus.ReserveStatusToText(1) %></div>
+                                    <div>@Classes.ReserveStatus.ReserveStatusToText(1)</div>
                                 </a>
                             </li>
                             <li class="menu-item">
                                 <a href="./Books?Mode=2" class="menu-link">
-                                    <div><%=Classes.ReserveStatus.ReserveStatusToText(2) %></div>
+                                    <div>@Classes.ReserveStatus.ReserveStatusToText(2)</div>
                                 </a>
                             </li>
                             <li class="menu-item">
                                 <a href="./Books?Mode=3" class="menu-link">
-                                    <div><%=Classes.ReserveStatus.ReserveStatusToText(3) %></div>
+                                    <div>@Classes.ReserveStatus.ReserveStatusToText(3)</div>
                                 </a>
                             </li>
                             <li class="menu-item">
                                 <a href="./Books?Mode=4" class="menu-link">
-                                    <div><%=Classes.ReserveStatus.ReserveStatusToText(4) %></div>
+                                    <div>@Classes.ReserveStatus.ReserveStatusToText(4)</div>
                                 </a>
                             </li>
                         </ul>
@@ -124,11 +129,11 @@
 
                         <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
                             <div class="navbar-nav align-items-center">
-                                <p class="mb-1" style="font-size: medium;"><%=Date() %></p>
+                                <p class="mb-1" style="font-size: medium;">@Model.CurrentDate</p>
                             </div>
                             <ul class="navbar-nav flex-row align-items-center ms-auto">
                                 <!-- User -->
-                                <%=Profile() %>
+                                @Html.Raw(Model.ProfileHtml)
                                 <!--/ User -->
                             </ul>
                         </div>
@@ -138,10 +143,9 @@
                 <!-- / Navbar -->
 
                 <!-- Content wrapper -->
-                <%=checkFinance() %>
+                @Html.Raw(Model.FinanceAlert)
                 <div class="content-wrapper">
-
-                    <asp:Panel ID="PanelLoad" CssClass="m-0" runat="server"></asp:Panel>
+                    @Html.Raw(Model.PageContent)
                 </div>
                 <!-- Content wrapper -->
             </div>
@@ -155,7 +159,7 @@
         <div class="drag-target"></div>
     </div>
     <!-- / Layout wrapper -->
-    <%=PAP.InClude.Bottom() %>
+    @Html.Raw(PAP.InClude.Bottom())
     <script>
         function updateUserStatus() {
             const userAvatar = document.getElementById('user-avatar');

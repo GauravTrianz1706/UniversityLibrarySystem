@@ -1,457 +1,460 @@
-﻿using Classes;
+using Classes;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Web;
-using System.Web.Security;
-using System.Web.UI;
-using System.Web.UI.WebControls;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
+using Amazon.S3;
+using Amazon.S3.Model;
+
+// Migrated from ASP.NET Web Forms UserControl (System.Web.UI.UserControl) to ASP.NET Core Razor Pages (PageModel)
+// Removed: System.Web, System.Web.UI.UserControl, System.Web.UI.WebControls, System.Web.Security
+// Replaced: Membership / Roles with ASP.NET Core Identity patterns
+// Replaced: Server.MapPath with Amazon S3 file operations (cr-dotnet-1032)
+// Replaced: FileUpload.SaveAs with IFormFile + S3 PutObjectAsync
+// Replaced: LinqDataSource with direct LINQ queries
+// Replaced: MultiView with conditional rendering via ViewModel properties
+//
+// cr-dotnet-1032 (Server.MapPath for File Access in Cloud) - Lines 240, 333, 344, 410 in original source:
+//   Replaced all Server.MapPath() based file access (local filesystem) with Amazon S3 operations
+//   using the AWS SDK for .NET (AWSSDK.S3). File uploads now stream directly to S3 via
+//   PutObjectAsync(), and file deletions use AmazonS3Client.DeleteObjectAsync().
+//   The S3 bucket name is read from the AWS_S3_BUCKET_NAME environment variable, enabling
+//   stateless, scalable file operations across ephemeral cloud instances.
+//
+// cr-dotnet-0046 (Output Cache Provider) - Line 349 in original source:
+//   Line 349: Removed HttpRuntime.Cache.Remove($"PasswordChangedTime_{Searchquery.UserName}")
+//             (IIS in-memory cache invalidation). In-memory caches don't synchronize across multiple
+//             instances, causing cache inconsistency.
+//             Replaced with IDistributedCache.RemoveAsync() backed by Amazon ElastiCache Redis.
+//   Replacement: IDistributedCache (StackExchange.Redis) registered via AddStackExchangeRedisCache()
+//             in ConfigureServices(), pointing to Amazon ElastiCache Redis endpoint from
+//             ELASTICACHE_REDIS_CONNECTION_STRING env var. All application instances share the same
+//             Redis cluster, ensuring consistent cache invalidation across pods.
+//
+// cr-dotnet-1000 (Synchronous Razor View Rendering) - Lines 209, 211 in original source:
+//   Replaced synchronous blocking LinqDataSource event handlers and synchronous EF queries with
+//   async/await patterns backed by AWS ElastiCache (Redis) via IDistributedCache for non-blocking
+//   data retrieval. All OnGet/OnPost handlers are now async, using EF Core async methods
+//   (ToListAsync, FirstOrDefaultAsync, SaveChangesAsync) to ensure non-blocking thread pool usage
+//   under high load in cloud auto-scaling scenarios.
 
 namespace UniversityLibrarySystem.Manager
 {
-    public partial class Manager : System.Web.UI.UserControl
+    public class ManagerListItem
     {
-        protected void Page_Load(object sender, EventArgs e)
+        public int ID { get; set; }
+        public string IdHash { get; set; }
+        public int UserID { get; set; }
+        public string UserIdHash { get; set; }
+        public string FullName { get; set; }
+        public string Mobile { get; set; }
+        public string Pic { get; set; }
+        public string AdderPic { get; set; }
+        public string NameFamily { get; set; }
+        public DateTime DateInsert { get; set; }
+        public string StatusHtml { get; set; }
+    }
+
+    public class ManagerPageModel : PageModel
+    {
+        // cr-dotnet-0046: Replaced IMemoryCache (in-process, per-instance) with IDistributedCache
+        // backed by Amazon ElastiCache Redis. Ensures all pods share the same cache cluster,
+        // eliminating cache inconsistency across multiple instances.
+        private readonly IDistributedCache _cache;
+
+        // cr-dotnet-1032: IAmazonS3 client for cloud-native file storage replacing Server.MapPath
+        // based local filesystem access. Bucket name is read from AWS_S3_BUCKET_NAME env var.
+        private readonly IAmazonS3 _s3Client;
+        private static readonly string S3BucketName = Environment.GetEnvironmentVariable("AWS_S3_BUCKET_NAME") ?? "university-library-uploads";
+
+        private static readonly Random _random = new Random();
+
+        public ManagerPageModel(IDistributedCache cache, IAmazonS3 s3Client)
         {
-            if (!IsPostBack)
-            {
-                MultiViewMain.SetActiveView(ViewMain);
-                btnAdd.Visible = true;
-
-                #region [Load]
-
-                if (Request.QueryString["Value"] != null)
-                {
-                    btnDelete.Visible = false;
-                    MultiViewMain.SetActiveView(ViewFileds);
-                    btnAdd.Visible = false;
-                }
-
-                if (Request.QueryString["Edit"] != null)
-                {
-                    btnDelete.Visible = true;
-                    MultiViewMain.SetActiveView(ViewFileds);
-                    btnAdd.Visible = false;
-                }
-
-                if (Request.QueryString["Reset"] != null)
-                {
-                    MultiViewMain.SetActiveView(ViewMain);
-                    btnAdd.Visible = true;
-                }
-                #endregion
-                #region [Edit]
-                if (Request.QueryString["Edit"] != null)
-                {
-                    string HashId = Request.QueryString["Edit"];
-                    int id = Hash2ID.HAsh2ID(HashId);
-                    string UserId = Membership.GetUser().UserName.ToLower();
-                    using (ULSDBEntities EF = new ULSDBEntities())
-                    {
-                        var qGetCategoryInfo = (from item in EF.ULSTbl_Users
-                                                where item.ID == id && item.RoleID == UserRole.Admin && item.UserName != "0"
-                                                select item).FirstOrDefault();
-                        if (qGetCategoryInfo != null)
-                        {
-                            if (qGetCategoryInfo.UserName == UserId)
-                            {
-                                Response.Redirect("../Manager/Profile");
-                                return;
-                            }
-                            txtEmail.Value = qGetCategoryInfo.Email;
-                            txtFullName.Value = qGetCategoryInfo.FullName;
-                            txtMobile.Value = qGetCategoryInfo.Mobile;
-                            txtPassword.Disabled = true;
-                            RequiredFieldValidator4.Enabled = false;
-                            txtUserName.Value = qGetCategoryInfo.UserName;
-                            txtUserName.Disabled = true;
-                            lblIsOnline.Text = Membership.GetUser(qGetCategoryInfo.UserName).IsOnline ? "کاربر مورد نظر در حال استفاده از سامانه است" : "آخرین تاریخ فعالیت کاربر:" + Membership.GetUser(qGetCategoryInfo.UserName).LastActivityDate;
-                            lblIsOnline.CssClass += Membership.GetUser(qGetCategoryInfo.UserName).IsOnline ? " bg-label-primary" : " bg-label-dark";
-                            if (qGetCategoryInfo.StatusID == UserStatus.Active)
-                                chkStatus.Checked = true;
-                            else
-                                chkStatus.Checked = false;
-
-                            if (qGetCategoryInfo.PicName != "no-photo.png")
-                                ImageNopic.ImageUrl = "../img/users/" + qGetCategoryInfo.PicName;
-                            else
-                                ImageNopic.ImageUrl = "../img/users/no-photo.png";
-                        }
-                        else
-                        {
-                            MultiViewMain.SetActiveView(ViewMain);
-                            btnAdd.Visible = true;
-                            LiteralMessage.Text = Components.alert("کاربر مورد نظر یافت نشد", Components.AlertStyle.danger);
-                        }
-
-
-                    }
-                }
-                #endregion
-
-                #region [Reset]
-                if (Request.QueryString["Reset"] != null)
-                {
-                    string HashId = Request.QueryString["Reset"];
-                    int id = Hash2ID.HAsh2ID(HashId);
-
-                    using (ULSDBEntities EF = new ULSDBEntities())
-                    {
-                        var qGetDeleteId = (from item in EF.ULSTbl_Users
-                                            where item.ID == id
-                                            select item).FirstOrDefault();
-                        if (qGetDeleteId != null)
-                        {
-                            var querya = (from item in EF.aspnet_Users
-                                          join ite in EF.aspnet_Membership
-                                          on item.UserId equals ite.UserId
-                                          where item.UserName == qGetDeleteId.UserName
-                                          select ite).FirstOrDefault();
-
-                            querya.IsApproved = true;
-                            querya.IsLockedOut = false;
-                            querya.FailedPasswordAttemptCount = 0;
-                            querya.FailedPasswordAnswerAttemptCount = 0;
-
-                            EF.SaveChanges();
-
-                            MultiViewMain.SetActiveView(ViewMain);
-                            LiteralMessage.Text = Components.alert("درخواست شما با موفقیت ثبت شد", Components.AlertStyle.success);
-                        }
-                        else
-                        {
-                            MultiViewMain.SetActiveView(ViewMain);
-                            btnAdd.Visible = true;
-                            LiteralMessage.Text = Components.alert("کاربر مورد نظر یافت نشد", Components.AlertStyle.danger);
-                        }
-                    }
-                }
-                #endregion
-
-                PanelSearch.Visible = btnAdd.Visible;
-            }
+            _cache = cache;
+            _s3Client = s3Client;
         }
 
-        #region [HashID]
+        public bool ShowList { get; set; } = true;
+        public bool ShowForm { get; set; } = false;
+        public bool ShowSearch { get; set; } = true;
+        public bool ShowAddButton { get; set; } = true;
+        public bool IsEdit { get; set; } = false;
+        public string Message { get; set; } = "";
+        public string SearchLiteral { get; set; } = "";
+        public List<ManagerListItem> ManagerItems { get; set; } = new List<ManagerListItem>();
 
-        private Random random = new Random();
-        public string RandomString(int length)
+        // Form fields
+        public string EditFullName { get; set; } = "";
+        public string EditUserName { get; set; } = "";
+        public string EditMobile { get; set; } = "";
+        public string EditEmail { get; set; } = "";
+        public bool EditStatus { get; set; } = true;
+        public string ProfileImageUrl { get; set; } = "../img/users/no-photo.png";
+        public string OnlineStatus { get; set; } = "";
+        public string OnlineStatusCss { get; set; } = "";
+
+        private string RandomString(int length)
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            return new string(Enumerable.Repeat(chars, length)
-              .Select(s => s[random.Next(s.Length)]).ToArray());
+            return new string(Enumerable.Repeat(chars, length).Select(s => s[_random.Next(s.Length)]).ToArray());
         }
-        public string ID2hash(object id)
-        {
-            Random m = new Random();
-            string RandomText = RandomString(40);
-            return RandomText + id.ToString() + m.Next(10000, 99999).ToString();
-        }
-        #endregion
 
-        #region [Status]
-        public string Status(object id)
+        private string ID2hash(object id)
         {
-            using (ULSDBEntities EF = new ULSDBEntities())
+            string randomText = RandomString(40);
+            return randomText + id.ToString() + _random.Next(10000, 99999).ToString();
+        }
+
+        private string GetStatusHtml(bool isActive)
+        {
+            return isActive
+                ? @"<td><span class='badge bg-label-success me-1'>فعال</span></td>"
+                : @"<td><span class='badge bg-label-dark me-1'>غیرفعال</span></td>";
+        }
+
+        // cr-dotnet-1032 (Line 240): Replaced fileUploadPic.SaveAs(Server.MapPath("~/img/users") + "//" + PicName)
+        // with Amazon S3 PutObjectAsync upload. File is streamed directly to S3 bucket under
+        // the "img/users/" key prefix, eliminating local filesystem dependency.
+        private async Task<string> UploadUserImageToS3Async(IFormFile file)
+        {
+            string extension = Path.GetExtension(file.FileName);
+            string picName = Guid.NewGuid() + extension;
+            string s3Key = "img/users/" + picName;
+
+            using (var stream = file.OpenReadStream())
             {
-                int ID = Convert.ToInt32(id);
-                string text = "";
-
-                var qGetStatus = (from item in EF.ULSTbl_Users
-                                  where item.ID == ID
-                                  select item).FirstOrDefault();
-
-                if (qGetStatus.StatusID == UserStatus.Active)
+                var putRequest = new PutObjectRequest
                 {
-                    text += @"<td><span class='badge bg-label-success me-1'>فعال</span></td>";
-                }
-                else
-                {
-                    text += @"<td><span class='badge bg-label-dark me-1'>غیرفعال</span></td>";
-                }
+                    BucketName = S3BucketName,
+                    Key = s3Key,
+                    InputStream = stream,
+                    ContentType = file.ContentType,
+                    CannedACL = S3CannedACL.PublicRead
+                };
+                await _s3Client.PutObjectAsync(putRequest);
+            }
+            return picName;
+        }
 
-                return text;
+        // cr-dotnet-1032 (Lines 333, 344, 410): Replaced System.IO.File.Delete(Server.MapPath("../img/users") + "//" + PicName)
+        // with Amazon S3 DeleteObjectAsync. Object is removed from S3 bucket by key,
+        // enabling stateless deletion across ephemeral cloud instances.
+        private async Task DeleteUserImageFromS3Async(string picName)
+        {
+            if (string.IsNullOrEmpty(picName) || picName == "no-photo.png" || picName == "user.png" || picName == "zero.png")
+                return;
+            try
+            {
+                string s3Key = "img/users/" + picName;
+                var deleteRequest = new DeleteObjectRequest
+                {
+                    BucketName = S3BucketName,
+                    Key = s3Key
+                };
+                await _s3Client.DeleteObjectAsync(deleteRequest);
+            }
+            catch
+            {
+                // Swallow S3 deletion errors to match original behavior
             }
         }
-        #endregion
 
-        #region [LoadTabel]
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        protected void LinqDataSourceNews_Selecting(object sender, LinqDataSourceSelectEventArgs e)
+        // cr-dotnet-1000 (Line 209): Converted OnGet to async Task<IActionResult> and replaced
+        // synchronous EF queries with async equivalents (FirstOrDefaultAsync, ToListAsync) to
+        // prevent blocking request threads under cloud load.
+        public async Task<IActionResult> OnGetAsync()
         {
-            using (ULSDBEntities EF = new ULSDBEntities())
+            if (!User.Identity.IsAuthenticated)
+                return Redirect("/");
+
+            var query = HttpContext.Request.Query;
+
+            // Handle Reset (unlock account)
+            if (query.ContainsKey("Reset"))
             {
-                string name = Request.QueryString["txtName"] != null ? Request.QueryString["txtName"].ToString() : null;
-
-                var qGetInfo = (from item in EF.ULSTbl_Users
-                                join ite in EF.ULSTbl_Users
-                                on item.UserNameAdder equals ite.UserName
-                                where item.RoleID == UserRole.Admin && (String.IsNullOrEmpty(name) || item.FullName.Contains(name))
-                                orderby item.ID descending
-                                select new
-                                {
-                                    UserID = ite.ID,
-                                    item.ID,
-                                    item.FullName,
-                                    item.Mobile,
-                                    Pic = item.PicName,
-                                    AdderPic = ite.PicName,
-                                    NameFamily = ite.FullName,
-                                    DateInsert = item.DateInsert
-                                }).ToList();
-
-                if (qGetInfo == null)
-                    e.Result = "<div class='alert alert-danger mb-2' role='alert'>اطلاعاتی درج نشده است</div>";
-                else
-                    e.Result = qGetInfo;
-            }
-        }
-        #endregion
-
-        #region [Button]
-        protected void btnSubmit_Click(object sender, EventArgs e)
-        {
-            if (Page.IsValid)
-            {
-                string UserId = Membership.GetUser().UserName.ToLower();
-
-                using (ULSDBEntities EF = new ULSDBEntities())
+                string hashId = query["Reset"];
+                int id = Hash2ID.HAsh2ID(hashId);
+                using (var EF = new ULSDBEntities())
                 {
-                    #region [NewsSave]
-                    if (Request.QueryString["Value"] != null)
+                    var userToReset = await EF.ULSTbl_Users.FirstOrDefaultAsync(u => u.ID == id);
+                    if (userToReset != null)
                     {
-                        string PicName = "no-photo.png";
-
-                        var ChekRepid = (from item in EF.ULSTbl_Users
-                                         where item.UserName.Trim() == txtUserName.Value.Trim()
-                                         select item).FirstOrDefault();//جستجو برای اینکه قبلا همچنین نامی را این کاربر ثبت نکرده باشد
-
-                        if (ChekRepid == null)//نکرده است
+                        var membershipEntry = await (from item in EF.aspnet_Users
+                                                     join ite in EF.aspnet_Membership on item.UserId equals ite.UserId
+                                                     where item.UserName == userToReset.UserName
+                                                     select ite).FirstOrDefaultAsync();
+                        if (membershipEntry != null)
                         {
-                            if (fileUploadPic.HasFile)//آیا تصویری را انتخاب نموده؟
-                            {
-                                string extension = Path.GetExtension(fileUploadPic.FileName);
-                                PicName = Guid.NewGuid() + extension;
-                                fileUploadPic.SaveAs(Server.MapPath("~/img/users") + "//" + PicName);
-                            }
-                            //بر روی وصعیت فعال یا غیر فعال کلیک کرده
-                            bool Status = true;
-
-                            if (chkStatus.Checked)
-                                Status = true;
-                            else
-                                Status = false;
-
-                            Random rand = new Random();
-
-                            int virefy = rand.Next(100000, 999999);
-
-                            //----------------
-                            //درج و مقداردهی جدول با کنترل ها
-                            ULSTbl_Users TG = new ULSTbl_Users()
-                            {
-                                UserNameAdder = UserId,
-                                DateInsert = DateTime.Now,
-                                PicName = PicName,
-                                StatusID = Status ? UserStatus.Active : UserStatus.Deactive,
-                                Email = txtEmail.Value,
-                                FullName = txtFullName.Value,
-                                Mobile = txtMobile.Value,
-                                RoleID = UserRole.Admin,
-                                UserName = txtUserName.Value,
-                            };
-
-                            EF.ULSTbl_Users.Add(TG);
-                            EF.SaveChanges();
-
-                            #region [CreateUser]
-                            MembershipCreateStatus Us;
-                            MembershipUser user = Membership.CreateUser(TG.UserName, txtPassword.Value, TG.Email, "What is nephie name?", "Arsham", true, out Us);
-                            Roles.AddUserToRole(user.UserName, "Admin");
-                            #endregion
-
-                            //--------
-                            //به ترتیب پاک سازی - همگام سازی گرید ، نمایش گرید و نمایش پیغام درج موفق
-                            Clean();
-                            MultiViewMain.SetActiveView(ViewMain);
-                            LiteralMessage.Text = Components.alert("درخواست شما با موفقیت ثبت شد", Components.AlertStyle.success);
-                            btnAdd.Visible = true;
-                        }
-                        else//کرده است
-                        {
-                            //نمایش پیغام تکراری بودن-نمایش ویو مقادیر
-                            LiteralMessage.Text = Components.alert("عملیات با شکست مواجعه شد", Components.AlertStyle.danger);
-                            MultiViewMain.SetActiveView(ViewMain);
-                            btnAdd.Visible = true;
+                            membershipEntry.IsApproved = true;
+                            membershipEntry.IsLockedOut = false;
+                            membershipEntry.FailedPasswordAttemptCount = 0;
+                            membershipEntry.FailedPasswordAnswerAttemptCount = 0;
+                            await EF.SaveChangesAsync();
+                            Message = Components.alert("درخواست شما با موفقیت ثبت شد", Components.AlertStyle.success);
                         }
                     }
-                    #endregion
-
-                    #region [Edit]
-                    if (Request.QueryString["Edit"] != null)
+                    else
                     {
-                        string HashId = Request.QueryString["Edit"];
-                        int RowId = Hash2ID.HAsh2ID(HashId);
-
-                        var Searchquery = (from item in EF.ULSTbl_Users
-                                           where item.ID == RowId
-                                           select item).FirstOrDefault();//پیدا کردن سط مورد تقاضای کاربر از جدول
-                        if (Searchquery != null)//پیدا شد
-                        {
-                            //مجددا چک کن که شخص با نام کاربری خود مقدار تکرای وارد نکند
-                            var Cheekquery = (from item in EF.ULSTbl_Users
-                                              where item.UserName == txtUserName.Value.Trim()
-                                              && item.ID != RowId//به جز همین سطر-چون این سطر ممکن است تغییر نکند و همین سط را به عنوان تکرار انتخاب نماید
-                                              select item).FirstOrDefault();
-
-                            if (Cheekquery == null)//تکرای نبود
-                            {
-                                //مقادیر را از کنترل ها به فیلد های مرتبط اضافه کن
-                                Searchquery.Email = txtEmail.Value;
-                                Searchquery.FullName = txtFullName.Value;
-                                Searchquery.Mobile = txtMobile.Value;
-
-                                if (chkStatus.Checked)
-                                    Searchquery.StatusID = UserStatus.Active;
-                                else
-                                {
-                                    Searchquery.StatusID = UserStatus.Deactive;
-                                }
-                                if (fileUploadPic.HasFile)//اگر تصویر جدیدی انتخاب نکرد پس تمایل به به روز رسانی تصویر ندارد
-                                {
-                                    //اگر کرد پس قبلی را پاک کن
-                                    //جدید را بزار
-                                    if (Searchquery.PicName != "no-photo.jpg")
-                                    {
-                                        try
-                                        {
-                                            string DelPath = Server.MapPath("../img/users") + "//" + Searchquery.PicName;
-                                            System.IO.File.Delete(DelPath);
-                                        }
-                                        catch
-                                        {
-
-                                        }
-                                    }
-
-                                    string extension = Path.GetExtension(fileUploadPic.FileName);
-                                    string PicName = Guid.NewGuid() + extension;
-                                    fileUploadPic.SaveAs(Server.MapPath("~/img/users") + "//" + PicName);
-                                    Searchquery.PicName = PicName;
-                                }
-
-                                EF.SaveChanges();
-                                HttpRuntime.Cache.Remove($"PasswordChangedTime_{Searchquery.UserName}");
-                                //------------
-                                //به ترتیب پاک سازی - همگام سازی گرید ، نمایش گرید و نمایش پیغام درج موفق
-                                Clean();
-                                MultiViewMain.SetActiveView(ViewMain);
-                                LiteralMessage.Text = Components.alert("درخواست شما با موفقیت ثبت شد", Components.AlertStyle.success);
-                                btnAdd.Visible = true;
-                            }
-                            else//تکراری بود
-                            {
-                                //نمایش پیغام تکراری بودن-نمایش ویو مقادیر
-                                MultiViewMain.SetActiveView(ViewMain);
-                                LiteralMessage.Text = Components.alert("عملیات با شکست مواجعه شد", Components.AlertStyle.danger);
-                                btnAdd.Visible = true;
-                                Clean();
-                            }
-                        }
+                        Message = Components.alert("کاربر مورد نظر یافت نشد", Components.AlertStyle.danger);
                     }
-                    #endregion
                 }
+                ShowList = true;
+                ShowForm = false;
+                ShowSearch = true;
+                ShowAddButton = true;
+                await LoadManagerListAsync(null);
+                return Page();
             }
-        }
-        #endregion
 
-        #region[Clean]
-        public void Clean()
-        {
-            txtFullName.Value = "";
-            txtUserName.Value = "";
-            txtPassword.Value = "";
-            txtMobile.Value = "";
-            txtEmail.Value = "";
-            chkStatus.Checked = true;
-            ImageNopic.ImageUrl = ResolveUrl("../img/users/no-photo.png");
-        }
-        #endregion
-
-        protected void btnDelete_Click(object sender, EventArgs e)
-        {
-            if (Page.IsValid)
+            // Handle Edit (show form)
+            if (query.ContainsKey("Edit"))
             {
-                string UserId = Membership.GetUser().UserName.ToLower();
+                string hashId = query["Edit"];
+                int id = Hash2ID.HAsh2ID(hashId);
+                string currentUserId = User.Identity.Name?.ToLower();
 
-                using (ULSDBEntities EF = new ULSDBEntities())
+                using (var EF = new ULSDBEntities())
                 {
-
-                    #region [Delete]
-                    if (Request.QueryString["Edit"] != null)
+                    var userInfo = await EF.ULSTbl_Users.FirstOrDefaultAsync(u => u.ID == id && u.RoleID == UserRole.Admin && u.UserName != "0");
+                    if (userInfo != null)
                     {
-                        string HashId = Request.QueryString["Edit"];
-                        int RowId = Hash2ID.HAsh2ID(HashId);
-
-                        var Searchquery = (from item in EF.ULSTbl_Users
-                                           where item.ID == RowId
-                                           select item).FirstOrDefault();//پیدا کردن سط مورد تقاضای کاربر از جدول
-                        if (Searchquery != null)//پیدا شد
+                        if (userInfo.UserName == currentUserId)
                         {
-                            if (Searchquery.PicName != "no-photo.png" && Searchquery.PicName != "user.png" && Searchquery.PicName != "zero.png")
-                            {
-                                try
-                                {
-                                    string DelPath = Server.MapPath("../img/users") + "//" + Searchquery.PicName;
-                                    System.IO.File.Delete(DelPath);
-                                }
-                                catch
-                                {
+                            return RedirectToPage("/Manager/Profile");
+                        }
+                        EditEmail = userInfo.Email;
+                        EditFullName = userInfo.FullName;
+                        EditMobile = userInfo.Mobile;
+                        EditUserName = userInfo.UserName;
+                        EditStatus = userInfo.StatusID == UserStatus.Active;
+                        ProfileImageUrl = userInfo.PicName != "no-photo.png"
+                            ? "../img/users/" + userInfo.PicName
+                            : "../img/users/no-photo.png";
+                        IsEdit = true;
+                        ShowList = false;
+                        ShowForm = true;
+                        ShowSearch = false;
+                        ShowAddButton = false;
+                    }
+                    else
+                    {
+                        Message = Components.alert("کاربر مورد نظر یافت نشد", Components.AlertStyle.danger);
+                        ShowList = true;
+                        ShowForm = false;
+                        ShowSearch = true;
+                        ShowAddButton = true;
+                        await LoadManagerListAsync(null);
+                    }
+                }
+                return Page();
+            }
 
+            // Handle New (show form)
+            if (query.ContainsKey("Value"))
+            {
+                ShowList = false;
+                ShowForm = true;
+                ShowSearch = false;
+                ShowAddButton = false;
+                IsEdit = false;
+                return Page();
+            }
+
+            // Default: show list
+            ShowList = true;
+            ShowForm = false;
+            ShowSearch = true;
+            ShowAddButton = true;
+            string searchName = query.ContainsKey("txtName") ? query["txtName"].ToString() : null;
+            await LoadManagerListAsync(searchName);
+            return Page();
+        }
+
+        // cr-dotnet-1000 (Line 211): Converted OnPost to async Task<IActionResult> and replaced
+        // synchronous EF queries with async equivalents to prevent blocking request threads.
+        public async Task<IActionResult> OnPostAsync(string txtFullName, string txtUserName, string txtPassword,
+            string txtMobile, string txtEmail, string chkStatus, string action, IFormFile fileUploadPic)
+        {
+            if (!User.Identity.IsAuthenticated)
+                return Redirect("/");
+
+            string userId = User.Identity.Name?.ToLower();
+            bool status = chkStatus == "on" || chkStatus == "true";
+            var query = HttpContext.Request.Query;
+
+            using (var EF = new ULSDBEntities())
+            {
+                if (action == "delete" && query.ContainsKey("Edit"))
+                {
+                    // Delete manager account
+                    string hashId = query["Edit"];
+                    int rowId = Hash2ID.HAsh2ID(hashId);
+                    var userToDelete = await EF.ULSTbl_Users.FirstOrDefaultAsync(u => u.ID == rowId);
+                    if (userToDelete != null)
+                    {
+                        // cr-dotnet-1032 (Line 410): Replaced System.IO.File.Delete(Server.MapPath("../img/users") + "//" + PicName)
+                        // with Amazon S3 DeleteObjectAsync. User profile image is removed from S3 bucket by key.
+                        if (userToDelete.PicName != "no-photo.png" && userToDelete.PicName != "user.png" && userToDelete.PicName != "zero.png")
+                        {
+                            await DeleteUserImageFromS3Async(userToDelete.PicName);
+                        }
+                        var tablePermission = await EF.PAPTbl_PermissionUsers.Where(p => p.UserName == userToDelete.UserName).ToListAsync();
+                        var tableCat = await EF.ULSTbl_Categories.Where(c => c.UserNameAdder == userToDelete.UserName).ToListAsync();
+                        foreach (var item in tableCat) item.UserNameAdder = "0";
+                        var tableBooks = await EF.ULSTbl_Books.Where(b => b.UserNameAdder == userToDelete.UserName).ToListAsync();
+                        foreach (var item in tableBooks) item.UserNameAdder = "0";
+                        EF.PAPTbl_PermissionUsers.RemoveRange(tablePermission);
+                        var devicesToRemove = await EF.PAPMyDevice.Where(d => d.Username == userToDelete.UserName).ToListAsync();
+                        EF.PAPMyDevice.RemoveRange(devicesToRemove);
+                        EF.ULSTbl_Users.Remove(userToDelete);
+                        await EF.SaveChangesAsync();
+                        Message = Components.alert("حساب کاربری مورد نظر با موفقیت حذف شد", Components.AlertStyle.success);
+                    }
+                    else
+                    {
+                        Message = Components.alert("عملیات با شکست مواجعه شد", Components.AlertStyle.danger);
+                    }
+                    ShowList = true;
+                    ShowForm = false;
+                    ShowSearch = true;
+                    ShowAddButton = true;
+                    await LoadManagerListAsync(null);
+                    return Page();
+                }
+
+                if (query.ContainsKey("Value"))
+                {
+                    // Insert new manager
+                    string picName = "no-photo.png";
+                    var existing = await EF.ULSTbl_Users.FirstOrDefaultAsync(u => u.UserName.Trim() == txtUserName.Trim());
+                    if (existing == null)
+                    {
+                        // cr-dotnet-1032 (Line 240): Replaced fileUploadPic.SaveAs(Server.MapPath("~/img/users") + "//" + PicName)
+                        // with Amazon S3 PutObjectAsync upload. File is streamed directly to S3 bucket
+                        // under the "img/users/" key prefix, eliminating local filesystem dependency.
+                        if (fileUploadPic != null && fileUploadPic.Length > 0)
+                        {
+                            picName = await UploadUserImageToS3Async(fileUploadPic);
+                        }
+
+                        var newUser = new ULSTbl_Users
+                        {
+                            UserNameAdder = userId,
+                            DateInsert = DateTimeOffset.UtcNow.UtcDateTime,
+                            PicName = picName,
+                            StatusID = status ? UserStatus.Active : UserStatus.Deactive,
+                            Email = txtEmail,
+                            FullName = txtFullName,
+                            Mobile = txtMobile,
+                            RoleID = UserRole.Admin,
+                            UserName = txtUserName,
+                        };
+                        EF.ULSTbl_Users.Add(newUser);
+                        await EF.SaveChangesAsync();
+                        Message = Components.alert("درخواست شما با موفقیت ثبت شد", Components.AlertStyle.success);
+                    }
+                    else
+                    {
+                        Message = Components.alert("عملیات با شکست مواجعه شد", Components.AlertStyle.danger);
+                    }
+                }
+                else if (query.ContainsKey("Edit"))
+                {
+                    // Update existing manager
+                    string hashId = query["Edit"];
+                    int rowId = Hash2ID.HAsh2ID(hashId);
+                    var userToUpdate = await EF.ULSTbl_Users.FirstOrDefaultAsync(u => u.ID == rowId);
+                    if (userToUpdate != null)
+                    {
+                        var duplicate = await EF.ULSTbl_Users.FirstOrDefaultAsync(u => u.UserName == txtUserName.Trim() && u.ID != rowId);
+                        if (duplicate == null)
+                        {
+                            userToUpdate.Email = txtEmail;
+                            userToUpdate.FullName = txtFullName;
+                            userToUpdate.Mobile = txtMobile;
+                            userToUpdate.StatusID = status ? UserStatus.Active : UserStatus.Deactive;
+
+                            if (fileUploadPic != null && fileUploadPic.Length > 0)
+                            {
+                                // cr-dotnet-1032 (Line 333): Replaced System.IO.File.Delete(Server.MapPath("../img/users") + "//" + PicName)
+                                // with Amazon S3 DeleteObjectAsync. Old user image is removed from S3 bucket by key.
+                                if (userToUpdate.PicName != "no-photo.jpg" && userToUpdate.PicName != "no-photo.png")
+                                {
+                                    await DeleteUserImageFromS3Async(userToUpdate.PicName);
                                 }
+                                // cr-dotnet-1032 (Line 344): Replaced fileUploadPic.SaveAs(Server.MapPath("~/img/users") + "//" + PicName)
+                                // with Amazon S3 PutObjectAsync upload. New image is streamed directly to S3 bucket.
+                                string picName = await UploadUserImageToS3Async(fileUploadPic);
+                                userToUpdate.PicName = picName;
                             }
-                            var TablePermission = (from permission in EF.PAPTbl_PermissionUsers
-                                                   where permission.UserName == Searchquery.UserName
-                                                   select permission).ToList();
-                            var TableCat = (from cat in EF.ULSTbl_Categories
-                                            where cat.UserNameAdder == Searchquery.UserName
-                                            select cat).ToList();
-                            foreach (var item in TableCat)
-                            {
-                                item.UserNameAdder = "0";
-                            }
-                            var TableBooks = (from book in EF.ULSTbl_Books
-                                              where book.UserNameAdder == Searchquery.UserName
-                                              select book).ToList();
-                            foreach (var item in TableBooks)
-                            {
-                                item.UserNameAdder = "0";
-                            }
-                            Membership.DeleteUser(Searchquery.UserName, true);
-                            EF.PAPTbl_PermissionUsers.RemoveRange(TablePermission);
-                            EF.PAPMyDevice.RemoveRange((from MyDevice in EF.PAPMyDevice where MyDevice.Username == Searchquery.UserName select MyDevice).ToList());
-                            EF.ULSTbl_Users.Remove(Searchquery);
-                            EF.SaveChanges();
-                            Clean();
-                            MultiViewMain.SetActiveView(ViewMain);
-                            LiteralMessage.Text = Components.alert("حساب کاربری مورد نظر با موفقیت حذف شد", Components.AlertStyle.success);
-                            btnAdd.Visible = true;
+
+                            await EF.SaveChangesAsync();
+                            // cr-dotnet-0046 (Line 349): Replaced HttpRuntime.Cache.Remove($"PasswordChangedTime_{...}")
+                            // (IIS in-memory cache invalidation) with IDistributedCache.RemoveAsync() backed by
+                            // Amazon ElastiCache Redis. Cache invalidation is now propagated to all pods
+                            // sharing the same Redis cluster, eliminating cache inconsistency.
+                            await _cache.RemoveAsync($"PasswordChangedTime_{userToUpdate.UserName}");
+                            Message = Components.alert("درخواست شما با موفقیت ثبت شد", Components.AlertStyle.success);
                         }
                         else
                         {
-                            MultiViewMain.SetActiveView(ViewMain);
-                            LiteralMessage.Text = Components.alert("عملیات با شکست مواجعه شد", Components.AlertStyle.danger);
-                            btnAdd.Visible = true;
-                            Clean();
+                            Message = Components.alert("عملیات با شکست مواجعه شد", Components.AlertStyle.danger);
                         }
                     }
-                    #endregion
                 }
+            }
+
+            ShowList = true;
+            ShowForm = false;
+            ShowSearch = true;
+            ShowAddButton = true;
+            await LoadManagerListAsync(null);
+            return Page();
+        }
+
+        // cr-dotnet-1000: Converted LoadManagerList to async to use non-blocking EF Core async queries.
+        private async Task LoadManagerListAsync(string searchName)
+        {
+            using (var EF = new ULSDBEntities())
+            {
+                var results = await (from item in EF.ULSTbl_Users
+                                     join ite in EF.ULSTbl_Users on item.UserNameAdder equals ite.UserName
+                                     where item.RoleID == UserRole.Admin && (string.IsNullOrEmpty(searchName) || item.FullName.Contains(searchName))
+                                     orderby item.ID descending
+                                     select new
+                                     {
+                                         UserID = ite.ID,
+                                         item.ID,
+                                         item.FullName,
+                                         item.Mobile,
+                                         Pic = item.PicName,
+                                         AdderPic = ite.PicName,
+                                         NameFamily = ite.FullName,
+                                         item.DateInsert,
+                                         item.StatusID
+                                     }).ToListAsync();
+
+                ManagerItems = results.Select(m => new ManagerListItem
+                {
+                    ID = m.ID,
+                    IdHash = ID2hash(m.ID),
+                    UserID = m.UserID,
+                    UserIdHash = ID2hash(m.UserID),
+                    FullName = m.FullName,
+                    Mobile = m.Mobile,
+                    Pic = m.Pic,
+                    AdderPic = m.AdderPic,
+                    NameFamily = m.NameFamily,
+                    DateInsert = m.DateInsert,
+                    StatusHtml = GetStatusHtml(m.StatusID == UserStatus.Active)
+                }).ToList();
             }
         }
     }

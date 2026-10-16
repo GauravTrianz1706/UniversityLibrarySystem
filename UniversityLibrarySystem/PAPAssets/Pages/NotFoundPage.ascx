@@ -1,4 +1,4 @@
-﻿<%@ Control Language="C#" AutoEventWireup="true" CodeBehind="NotFoundPage.ascx.cs" Inherits="PAP.NotFoundPage" %>
+@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
 <div class="content-wrapper">
     <!-- Content -->
 

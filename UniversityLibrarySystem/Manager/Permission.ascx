@@ -1,5 +1,7 @@
-﻿<%@ Control Language="C#" AutoEventWireup="true" CodeBehind="Permission.ascx.cs" Inherits="UniversityLibrarySystem.Manager.Permission" %>
-
+@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
+@* Removed: <%@ Control %> directive, runat="server", asp:ScriptManager, asp:UpdatePanel, asp:CheckBoxList, asp:LinqDataSource *@
+@* Replaced: Web Forms server controls with standard HTML and Razor syntax *@
+@model UniversityLibrarySystem.Manager.PermissionModel
 <style type="text/css">
     .overlay {
         position: fixed;
@@ -15,7 +17,6 @@
         align-items: center;
     }
 
-    /* From Uiverse.io by barisdogansutcu */
     svg {
         width: 3.25em;
         transform-origin: center;
@@ -33,13 +34,13 @@
         background: none;
     }
 
-    @keyframes rotate4 {
+    @@keyframes rotate4 {
         100% {
             transform: rotate(360deg);
         }
     }
 
-    @keyframes dash4 {
+    @@keyframes dash4 {
         0% {
             stroke-dasharray: 1, 200;
             stroke-dashoffset: 0;
@@ -55,50 +56,7 @@
         }
     }
 
-    svg {
-        width: 3.25em;
-        transform-origin: center;
-        animation: rotate4 2s linear infinite;
-        background-color:transparent;
-        color:transparent;
-    }
-
-    circle {
-        fill: none;
-        stroke: hsl(214, 97%, 59%);
-        stroke-width: 5;
-        stroke-dasharray: 1, 200;
-        stroke-dashoffset: 0;
-        stroke-linecap: round;
-        animation: dash4 1.5s ease-in-out infinite;
-        background-color:transparent;
-    }
-
-    @keyframes rotate4 {
-        100% {
-            transform: rotate(360deg);
-        }
-    }
-
-    @keyframes dash4 {
-        0% {
-            stroke-dasharray: 1, 200;
-            stroke-dashoffset: 0;
-        }
-
-        50% {
-            stroke-dasharray: 90, 200;
-            stroke-dashoffset: -35px;
-        }
-
-        100% {
-            stroke-dashoffset: -125px;
-        }
-    }
-</style>
-<style>
-    /* استایل برای تبدیل چک‌باکس به سوئیچ */
-    #Permission_CheckBoxListPermission input[type="checkbox"] {
+    #permission-checkbox-list input[type="checkbox"] {
         -webkit-appearance: none;
         -moz-appearance: none;
         appearance: none;
@@ -113,37 +71,36 @@
         transition: background-color 0.3s, border-color 0.3s;
     }
 
-        #Permission_CheckBoxListPermission input[type="checkbox"]:before {
+        #permission-checkbox-list input[type="checkbox"]:before {
             content: "";
             width: 20px;
             height: 90%;
             background-color: white;
             border-radius: 50%;
             position: absolute;
-            top: 1.2px; /* دایره را در وسط قرار می‌دهد */
-            left: 2px; /* دایره را در وسط قرار می‌دهد */
+            top: 1.2px;
+            left: 2px;
             transition: transform 0.3s;
         }
 
-        #Permission_CheckBoxListPermission input[type="checkbox"]:checked {
-            background-color: #275EFE; /* رنگ آبی */
+        #permission-checkbox-list input[type="checkbox"]:checked {
+            background-color: #275EFE;
         }
 
-            #Permission_CheckBoxListPermission input[type="checkbox"]:checked:before {
+            #permission-checkbox-list input[type="checkbox"]:checked:before {
                 transform: translateX(25px);
             }
 
-        /* استایل برای حالت غیرفعال */
-        #Permission_CheckBoxListPermission input[type="checkbox"]:disabled {
+        #permission-checkbox-list input[type="checkbox"]:disabled {
             background-color: #e6e6e6;
             cursor: not-allowed;
         }
 
-            #Permission_CheckBoxListPermission input[type="checkbox"]:disabled:before {
+            #permission-checkbox-list input[type="checkbox"]:disabled:before {
                 background-color: #ccc;
             }
-    /* تنظیم موقعیت label برای تراز شدن با سوئیچ */
-    #Permission_CheckBoxListPermission label {
+
+    #permission-checkbox-list label {
         display: inline-block;
         vertical-align: middle;
         margin-right: 5px;
@@ -152,12 +109,9 @@
 </style>
 
 <script type="text/javascript">
-
     $(document).ready(function () {
-        // attach the event to the button control 
         $("#btn_CheckAll").click(function () {
-            // i want to check all the checkboxes contained in the chkList control               
-            $("#chkList").find("input[@type=checkbox]").each(function () {
+            $("#permission-checkbox-list").find("input[type=checkbox]").each(function () {
                 if (!this.checked) {
                     this.checked = true;
                     return;
@@ -168,97 +122,61 @@
     });
 </script>
 
-<style>
-    .mainFull {
-        position: fixed;
-        padding: 0;
-        margin: 0;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(255,255,255,0.5);
-    }
-</style>
 <div class="content-wrapper">
     <!-- Content -->
 
     <div class="container-xxl flex-grow-1 container-p-y">
-        <h4 class="py-3 breadcrumb-wrapper mb-4">سطح دسترسی مدیران
-        </h4>
+        <h4 class="py-3 breadcrumb-wrapper mb-4">سطح دسترسی مدیران</h4>
         <div class="mb-0">
-            <asp:Literal ID="LiteralMessage" runat="server"></asp:Literal>
+            @Html.Raw(Model.Message)
         </div>
-        <form runat="server">
-            <asp:ScriptManager ID="ScriptManager1" runat="server"></asp:ScriptManager>
+        <form method="post">
+            @Html.AntiForgeryToken()
             <!-- Striped Rows -->
             <div class="col-12">
                 <div class="card mb-4">
                     <div class="card-body">
                         <div class="row">
                             <div class="col-12 mb-2">
-                                <asp:UpdatePanel ID="UpdatePanel4" runat="server">
-                                    <ContentTemplate>
-                                        <asp:LinkButton ID="lbAll" runat="server" OnClick="lbAll_Click">انتخاب همه</asp:LinkButton>
-                                        <asp:LinkButton ID="lbNone" runat="server" OnClick="lbNone_Click">/ برداشتن</asp:LinkButton>
-                                    </ContentTemplate>
-                                </asp:UpdatePanel>
+                                <a href="#" id="btn_CheckAll">انتخاب همه</a>
                                 <br />
-                                <label class="form-label" for="phone-number-mask">نام مدیر:</label>
+                                <label class="form-label" for="drpPersonal">نام مدیر:</label>
                                 <div>
-                                    <asp:UpdatePanel ID="UpdatePanel1" runat="server">
-                                        <ContentTemplate>
-                                            <asp:DropDownList CssClass="form-select" ID="drpPersonal" name="drpPersonal" ValidationGroup="Filds"
-                                                runat="server" DataSourceID="LinqDataSourceUserName" DataTextField="PersonalName"
-                                                DataValueField="UserName" AutoPostBack="True" OnSelectedIndexChanged="drpPersonal_SelectedIndexChanged" AppendDataBoundItems="True">
-                                                <asp:ListItem Selected="True" Text="لطفا یک حساب کاربری را انتخاب کنید" Value="0"></asp:ListItem>
-                                            </asp:DropDownList>
-                                            <asp:Label ID="lblUN" runat="server" Text=""></asp:Label>
-                                            <asp:LinqDataSource ID="LinqDataSourceUserName" runat="server" OnSelecting="LinqDataSourceUserName_Selecting">
-                                            </asp:LinqDataSource>
-                                        </ContentTemplate>
-                                    </asp:UpdatePanel>
+                                    <select class="form-select" id="drpPersonal" name="drpPersonal"
+                                            onchange="this.form.submit()">
+                                        <option value="0">لطفا یک حساب کاربری را انتخاب کنید</option>
+                                        @foreach (var admin in Model.AdminUsers)
+                                        {
+                                            <option value="@admin.UserName" @(Model.SelectedUserName == admin.UserName ? "selected" : "")>@admin.PersonalName</option>
+                                        }
+                                    </select>
+                                    @if (!string.IsNullOrEmpty(Model.SelectedUserName) && Model.SelectedUserName != "0")
+                                    {
+                                        <span>نام کاربری مدیر: @Model.SelectedUserName</span>
+                                    }
                                 </div>
                             </div>
-                            <div class="col-12">
-                                <asp:UpdatePanel ID="UpdatePanel2" runat="server">
-                                    <ContentTemplate>
-                                        <asp:CheckBoxList ID="CheckBoxListPermission" runat="server" CssClass="checkbox"
-                                            DataValueField="ID" DataTextField="PageNameForDisplay" DataSourceID="LinqDataSourcePermission" Style="width: 400px;"
-                                            AutoPostBack="True">
-                                        </asp:CheckBoxList>
-                                        <asp:LinqDataSource ID="LinqDataSourcePermission" runat="server" OnSelecting="LinqDataSourcePermission_Selecting">
-                                        </asp:LinqDataSource>
-                                    </ContentTemplate>
-                                </asp:UpdatePanel>
-                            </div>
-                            <asp:UpdateProgress ID="UpdateProgress1" runat="server">
-                                <ProgressTemplate>
-                                    <div class="overlay">
-                                        <center>
-                                            <p>لطفا منتظر باشید...</p>
-                                            <svg viewBox="25 25 50 50">
-                                                <circle r="20" cy="50" cx="50"></circle>
-                                            </svg>
-                                        </center>
+                            <div class="col-12" id="permission-checkbox-list">
+                                @foreach (var page in Model.PermissionPages)
+                                {
+                                    <div>
+                                        <input type="checkbox" id="perm_@page.ID" name="selectedPermissions" value="@page.ID"
+                                               @(page.IsSelected ? "checked" : "")>
+                                        <label for="perm_@page.ID">@page.PageNameForDisplay</label>
                                     </div>
-                                </ProgressTemplate>
-                            </asp:UpdateProgress>
+                                }
+                            </div>
 
                             <hr class="my-4 mx-n4">
                             <div class="pt-4">
-                                <asp:UpdatePanel ID="UpdatePanel3" runat="server">
-                                    <ContentTemplate>
-                                        <asp:Button ID="btnSubmit" ValidationGroup="Valid" CssClass="btn btn-primary me-sm-3 me-1" runat="server" Text="ثبت" Enabled="false" OnClick="btnSubmit_Click" />
-                                    </ContentTemplate>
-                                </asp:UpdatePanel>
+                                <button type="submit" class="btn btn-primary me-sm-3 me-1"
+                                        @(string.IsNullOrEmpty(Model.SelectedUserName) || Model.SelectedUserName == "0" ? "disabled" : "")>ثبت</button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
             <!--/ Striped Rows -->
-
         </form>
     </div>
     <!-- / Content -->

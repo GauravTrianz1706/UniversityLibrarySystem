@@ -87,7 +87,8 @@
           now = new Date();
           diff = Math.floor((target.valueOf() - now.valueOf()) / 1000);
         } catch (e) {
-          throw 'The date parameter is invalidate!';
+          if (typeof console !== 'undefined' && console.error) { console.error('[CloudWatch][ERROR] Countdown date calculation failed', { error: e && e.message ? e.message : String(e), stack: e && e.stack ? e.stack : '', source: 'countdown.js', function: 'init', options: JSON.stringify(options), timestamp: new Date().toISOString() }); }
+          throw new Error('The date parameter is invalid: ' + (e && e.message ? e.message : String(e)));
         }
       }
       this.settings.diff = diff;

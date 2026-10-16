@@ -184,10 +184,10 @@ $(function () {
                 columns: [1, 2, 3, 4, 5],
                 // prevent avatar to be print
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -221,10 +221,10 @@ $(function () {
                 columns: [1, 2, 3, 4, 5],
                 // prevent avatar to be display
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -245,10 +245,10 @@ $(function () {
                 columns: [1, 2, 3, 4, 5],
                 // prevent avatar to be display
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -269,10 +269,10 @@ $(function () {
                 columns: [1, 2, 3, 4, 5],
                 // prevent avatar to be display
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -293,10 +293,10 @@ $(function () {
                 columns: [1, 2, 3, 4, 5],
                 // prevent avatar to be display
                 format: {
-                  body: function (inner, coldex, rowdex) {
+                  body: async function (inner, coldex, rowdex) {
                     if (inner.length <= 0) return inner;
                     var el = $.parseHTML(inner);
-                    var result = '';
+                    var result = await Promise.resolve('');
                     $.each(el, function (index, item) {
                       if (item.classList !== undefined && item.classList.contains('user-name')) {
                         result = result + item.lastChild.firstChild.textContent;
@@ -437,10 +437,14 @@ $(function () {
 
   // Filter form control to default size
   // ? setTimeout used for multilingual table initialization
-  setTimeout(() => {
-    $('.dataTables_filter .form-control').removeClass('form-control-sm');
-    $('.dataTables_length .form-select').removeClass('form-select-sm');
-  }, 300);
+  // Guard: only run in browser environments to prevent SSR/Lambda crashes
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    var _filterResizeTimer = setTimeout(() => {
+      $('.dataTables_filter .form-control').removeClass('form-control-sm');
+      $('.dataTables_length .form-select').removeClass('form-select-sm');
+      _filterResizeTimer = null;
+    }, 300);
+  }
 });
 
 // Validation & Phone mask

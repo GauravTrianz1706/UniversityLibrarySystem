@@ -1,18 +1,13 @@
-﻿using Classes;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-using System.Web.UI;
-using System.Web.UI.WebControls;
+using Classes;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace UniversityLibrarySystem
 {
-    public partial class _404 : System.Web.UI.Page
+    public class _404Model : PageModel
     {
-        protected void Page_Load(object sender, EventArgs e)
+        public void OnGet()
         {
-            Page.Title = SiteConfig.mixTitle("صفحه مورد نظر یافت نشد!");
+            ViewData["Title"] = SiteConfig.mixTitle("صفحه مورد نظر یافت نشد!");
         }
     }
 }

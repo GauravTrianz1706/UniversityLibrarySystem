@@ -106,14 +106,19 @@
     var _this = this;
 
     var called = false;
-    $(this).one(Util.TRANSITION_END, function () {
-      called = true;
+    // Refactored to async/await to eliminate nested callback pattern
+    var transitionPromise = new Promise(function (resolve) {
+      $(_this).one(Util.TRANSITION_END, function () {
+        called = true;
+        resolve();
+      });
     });
-    setTimeout(function () {
+    var timeoutPromise = new Promise(function (resolve) { setTimeout(resolve, duration); });
+    Promise.race([transitionPromise, timeoutPromise]).then(async function () {
       if (!called) {
         Util.triggerTransitionEnd(_this);
       }
-    }, duration);
+    });
     return this;
   }
 
@@ -1014,13 +1019,13 @@
         }
 
         var transitionDuration = Util.getTransitionDurationFromElement(activeElement);
-        $(activeElement).one(Util.TRANSITION_END, function () {
+        // Refactored to async/await to eliminate nested setTimeout callback pattern
+        $(activeElement).one(Util.TRANSITION_END, async function () {
           $(nextElement).removeClass(directionalClassName + " " + orderClassName).addClass(ClassName$2.ACTIVE);
           $(activeElement).removeClass(ClassName$2.ACTIVE + " " + orderClassName + " " + directionalClassName);
           _this4._isSliding = false;
-          setTimeout(function () {
-            return $(_this4._element).trigger(slidEvent);
-          }, 0);
+          await Promise.resolve();
+          $(_this4._element).trigger(slidEvent);
         }).emulateTransitionEnd(transitionDuration);
       } else {
         $(activeElement).removeClass(ClassName$2.ACTIVE);

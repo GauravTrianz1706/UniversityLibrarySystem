@@ -9,6 +9,7 @@
         url: "LeaveComment.aspx/sendToServer",
         data: "{'id':'" + id + "','point':'" + point + "','title':'" + title + "','description':'" + description + "'}",
         contentType: "application/json; charset=utf-8",
+        dataType: "json",
 
         success: function (response) {
             var result = response.d;
@@ -62,6 +63,7 @@ function AddToCart(x) {
         url: "PartnerDetail.aspx/AddToCart",
         data: "{'id':'" + x + "'}",
         contentType: "application/json; charset=utf-8",
+        dataType: "json",
 
         success: function (response) {
             var result = response.d;

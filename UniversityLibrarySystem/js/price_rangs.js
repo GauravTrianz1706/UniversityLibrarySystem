@@ -54,7 +54,7 @@
             }
 
             var args = slice.call(arguments, 1),
-                bound = function () {
+                bound = async function () {
 
                     if (this instanceof bound) {
 
@@ -62,10 +62,10 @@
                         F.prototype = target.prototype;
                         var self = new F();
 
-                        var result = target.apply(
+                        var result = await Promise.resolve(target.apply(
                             self,
                             args.concat(slice.call(arguments))
-                        );
+                        ));
                         if (Object(result) === result) {
                             return result;
                         }
@@ -1671,7 +1671,7 @@
          * @param percent {Number} X in percent
          * @returns {Number} X in real
          */
-        convertToValue: function (percent) {
+        convertToValue: async function (percent) {
             var min = this.options.min,
                 max = this.options.max,
                 min_decimals = min.toString().split(".")[1],
@@ -1724,9 +1724,9 @@
             }
 
             if (string) {
-                result = +number.toFixed(string.length);
+                result = await Promise.resolve(+number.toFixed(string.length));
             } else {
-                result = this.toFixed(number);
+                result = await Promise.resolve(this.toFixed(number));
             }
 
             if (result < this.options.min) {

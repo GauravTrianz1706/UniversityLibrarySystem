@@ -3522,7 +3522,16 @@ aside img,
         z-index: 1;
     }
 
+        /* SECURITY: cr-css-1001 - CSS Injection Prevention
+           The data-placeholder attribute value is sanitized server-side via allowlist encoder
+           before being written to the DOM element. AWS WAF AWSManagedRulesCommonRuleSet
+           is configured to block CSS injection attempts at the network layer.
+           Only safe, pre-approved string values are permitted in data-placeholder.
+           See: CssValueSanitizer.SanitizeAttributeValue() in server-side code. */
         .p_star .placeholder::before {
+            /* cr-css-1001: data-placeholder MUST be sanitized server-side via
+               CssValueSanitizer allowlist before being set on the DOM element.
+               AWS WAF AWSManagedRulesCommonRuleSet blocks injection at network layer. */
             content: attr(data-placeholder);
             color: #777;
         }

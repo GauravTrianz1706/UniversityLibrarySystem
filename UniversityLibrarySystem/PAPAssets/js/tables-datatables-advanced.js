@@ -296,8 +296,12 @@ $(function () {
 
   // Filter form control to default size
   // ? setTimeout used for multilingual table initialization
-  setTimeout(() => {
-    $('.dataTables_filter .form-control').removeClass('form-control-sm');
-    $('.dataTables_length .form-select').removeClass('form-select-sm');
-  }, 200);
+  // Guard: only run in browser environments to prevent SSR/Lambda crashes
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    var _filterResizeTimer = setTimeout(() => {
+      $('.dataTables_filter .form-control').removeClass('form-control-sm');
+      $('.dataTables_length .form-select').removeClass('form-select-sm');
+      _filterResizeTimer = null;
+    }, 200);
+  }
 });

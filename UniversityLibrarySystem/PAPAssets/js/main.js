@@ -48,7 +48,7 @@ if (document.getElementById('layout-menu')) {
             'templateCustomizer-' + templateName + '--LayoutCollapsed',
             String(window.Helpers.isCollapsed())
           );
-        } catch (e) {}
+        } catch (e) { if (typeof console !== 'undefined' && console.error) { console.error('[CloudWatch][ERROR] localStorage.setItem failed for menu state', { error: e && e.message ? e.message : String(e), stack: e && e.stack ? e.stack : '', source: 'main.js', function: 'enableMenuLocalStorage', key: 'templateCustomizer--LayoutCollapsed', timestamp: new Date().toISOString() }); } }
       }
     });
   });
@@ -288,7 +288,9 @@ if (document.getElementById('layout-menu')) {
       // Horizontal Layout : Update menu based on window size
       let horizontalMenuTemplate = document.querySelector("[data-template^='horizontal-menu']");
       if (horizontalMenuTemplate) {
-        setTimeout(function () {
+        // Replaced nested setTimeout callback with async/await using Promise-based delay
+        (async function () {
+          await new Promise(function (resolve) { setTimeout(resolve, 100); });
           if (window.innerWidth < window.Helpers.LAYOUT_BREAKPOINT) {
             if (document.getElementById('layout-menu')) {
               if (document.getElementById('layout-menu').classList.contains('menu-horizontal')) {
@@ -302,7 +304,7 @@ if (document.getElementById('layout-menu')) {
               }
             }
           }
-        }, 100);
+        })();
       }
     },
     true
@@ -337,7 +339,7 @@ if (document.getElementById('layout-menu')) {
             localStorage.getItem('templateCustomizer-' + templateName + '--LayoutCollapsed') === 'true',
             false
           );
-      } catch (e) {}
+      } catch (e) { if (typeof console !== 'undefined' && console.error) { console.error('[CloudWatch][ERROR] localStorage.getItem failed for menu state restore', { error: e && e.message ? e.message : String(e), stack: e && e.stack ? e.stack : '', source: 'main.js', function: 'restoreMenuState', key: 'templateCustomizer--LayoutCollapsed', timestamp: new Date().toISOString() }); } }
     }
   }
 })();
@@ -416,178 +418,187 @@ if (typeof $ !== 'undefined') {
       if ($('#layout-menu').hasClass('menu-horizontal')) {
         var searchJson = 'search-horizontal.json'; // For vertical layout
       }
-      // Search API AJAX call
-      var searchData = $.ajax({
-        url: assetsPath + 'json/' + searchJson, //? Use your own search api instead
-        dataType: 'json',
-        async: false
-      }).responseJSON;
-      // Init typeahead on searchInput
-      searchInput.each(function () {
-        var $this = $(this);
-        searchInput
-          .typeahead(
-            {
-              hint: false,
-              classNames: {
-                menu: 'tt-menu navbar-search-suggestion',
-                cursor: 'active',
-                suggestion: 'suggestion d-flex justify-content-between px-3 py-2 w-100'
+      // Search API async call using fetch (AWS API Gateway compatible, non-blocking)
+      async function initSearchTypeahead() {
+        try {
+          var searchData = await fetch(assetsPath + 'json/' + searchJson) //? Use your own AWS API Gateway endpoint instead
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error('Search data fetch failed: ' + response.status);
               }
-            },
-            // ? Add/Update blocks as per need
-            // Pages
-            {
-              name: 'pages',
-              display: 'name',
-              limit: 5,
-              source: filterConfig(searchData.pages),
-              templates: {
-                header: '<h6 class="suggestions-header text-primary mb-0 mx-3 mt-3 pb-2">صفحات</h6>',
-                suggestion: function ({ url, icon, name }) {
-                  return (
-                    '<a href="' +
-                    url +
-                    '">' +
-                    '<div>' +
-                    '<i class="bx ' +
-                    icon +
-                    ' me-2"></i>' +
-                    '<span class="align-middle">' +
-                    name +
-                    '</span>' +
-                    '</div>' +
-                    '</a>'
-                  );
+              return response.json();
+            });
+          // Init typeahead on searchInput
+          searchInput.each(function () {
+            var $this = $(this);
+            searchInput
+              .typeahead(
+                {
+                  hint: false,
+                  classNames: {
+                    menu: 'tt-menu navbar-search-suggestion',
+                    cursor: 'active',
+                    suggestion: 'suggestion d-flex justify-content-between px-3 py-2 w-100'
+                  }
                 },
-                notFound:
-                  '<div class="not-found px-3">' +
-                  '<h6 class="suggestions-header text-primary mt-3 mb-2">صفحات</h6>' +
-                  '<p class="py-2 mb-0"><i class="bx bx-error-circle bx-xs me-2"></i> نتیجه‌ای پیدا نشد</p>' +
-                  '</div>'
-              }
-            },
-            // Files
-            {
-              name: 'files',
-              display: 'name',
-              limit: 4,
-              source: filterConfig(searchData.files),
-              templates: {
-                header: '<h6 class="suggestions-header text-primary mb-0 mx-3 mt-4 pb-2">فایل‌ها</h6>',
-                suggestion: function ({ src, name, subtitle, meta }) {
-                  return (
-                    '<a href="javascript:;">' +
-                    '<div class="d-flex align-items-center w-50">' +
-                    '<img class="me-3" src="' +
-                    assetsPath +
-                    src +
-                    '" alt="' +
-                    name +
-                    '" height="32">' +
-                    '<div class="w-75">' +
-                    '<h6 class="mb-0">' +
-                    name +
-                    '</h6>' +
-                    '<small class="text-muted">' +
-                    subtitle +
-                    '</small>' +
-                    '</div>' +
-                    '</div>' +
-                    '<small class="text-muted">' +
-                    meta +
-                    '</small>' +
-                    '</a>'
-                  );
+                // ? Add/Update blocks as per need
+                // Pages
+                {
+                  name: 'pages',
+                  display: 'name',
+                  limit: 5,
+                  source: filterConfig(searchData.pages),
+                  templates: {
+                    header: '<h6 class="suggestions-header text-primary mb-0 mx-3 mt-3 pb-2">صفحات</h6>',
+                    suggestion: function ({ url, icon, name }) {
+                      return (
+                        '<a href="' +
+                        url +
+                        '">' +
+                        '<div>' +
+                        '<i class="bx ' +
+                        icon +
+                        ' me-2"></i>' +
+                        '<span class="align-middle">' +
+                        name +
+                        '</span>' +
+                        '</div>' +
+                        '</a>'
+                      );
+                    },
+                    notFound:
+                      '<div class="not-found px-3">' +
+                      '<h6 class="suggestions-header text-primary mt-3 mb-2">صفحات</h6>' +
+                      '<p class="py-2 mb-0"><i class="bx bx-error-circle bx-xs me-2"></i> نتیجه‌ای پیدا نشد</p>' +
+                      '</div>'
+                  }
                 },
-                notFound:
-                  '<div class="not-found px-3">' +
-                  '<h6 class="suggestions-header text-primary mt-4 mb-2">فایل‌ها</h6>' +
-                  '<p class="py-2 mb-0"><i class="bx bx-error-circle bx-xs me-2"></i> نتیجه‌ای پیدا نشد</p>' +
-                  '</div>'
-              }
-            },
-            // Members
-            {
-              name: 'members',
-              display: 'name',
-              limit: 4,
-              source: filterConfig(searchData.members),
-              templates: {
-                header: '<h6 class="suggestions-header text-primary mb-0 mx-3 mt-4 pb-1">اعضا</h6>',
-                suggestion: function ({ name, src, subtitle }) {
-                  return (
-                    '<a href="app-user-view-account.html">' +
-                    '<div class="d-flex align-items-center">' +
-                    '<img class="rounded-circle me-3" src="' +
-                    assetsPath +
-                    src +
-                    '" alt="' +
-                    name +
-                    '" height="32">' +
-                    '<div class="user-info">' +
-                    '<h6 class="mb-0">' +
-                    name +
-                    '</h6>' +
-                    '<small class="text-muted">' +
-                    subtitle +
-                    '</small>' +
-                    '</div>' +
-                    '</div>' +
-                    '</a>'
-                  );
+                // Files
+                {
+                  name: 'files',
+                  display: 'name',
+                  limit: 4,
+                  source: filterConfig(searchData.files),
+                  templates: {
+                    header: '<h6 class="suggestions-header text-primary mb-0 mx-3 mt-4 pb-2">فایل‌ها</h6>',
+                    suggestion: function ({ src, name, subtitle, meta }) {
+                      return (
+                        '<a href="javascript:;">' +
+                        '<div class="d-flex align-items-center w-50">' +
+                        '<img class="me-3" src="' +
+                        assetsPath +
+                        src +
+                        '" alt="' +
+                        name +
+                        '" height="32">' +
+                        '<div class="w-75">' +
+                        '<h6 class="mb-0">' +
+                        name +
+                        '</h6>' +
+                        '<small class="text-muted">' +
+                        subtitle +
+                        '</small>' +
+                        '</div>' +
+                        '</div>' +
+                        '<small class="text-muted">' +
+                        meta +
+                        '</small>' +
+                        '</a>'
+                      );
+                    },
+                    notFound:
+                      '<div class="not-found px-3">' +
+                      '<h6 class="suggestions-header text-primary mt-4 mb-2">فایل‌ها</h6>' +
+                      '<p class="py-2 mb-0"><i class="bx bx-error-circle bx-xs me-2"></i> نتیجه‌ای پیدا نشد</p>' +
+                      '</div>'
+                  }
                 },
-                notFound:
-                  '<div class="not-found px-3 pb-2">' +
-                  '<h6 class="suggestions-header text-primary mt-4 mb-2">اعضا</h6>' +
-                  '<p class="py-2 mb-0"><i class="bx bx-error-circle bx-xs me-2"></i> نتیجه‌ای پیدا نشد</p>' +
-                  '</div>'
+                // Members
+                {
+                  name: 'members',
+                  display: 'name',
+                  limit: 4,
+                  source: filterConfig(searchData.members),
+                  templates: {
+                    header: '<h6 class="suggestions-header text-primary mb-0 mx-3 mt-4 pb-1">اعضا</h6>',
+                    suggestion: function ({ name, src, subtitle }) {
+                      return (
+                        '<a href="app-user-view-account.html">' +
+                        '<div class="d-flex align-items-center">' +
+                        '<img class="rounded-circle me-3" src="' +
+                        assetsPath +
+                        src +
+                        '" alt="' +
+                        name +
+                        '" height="32">' +
+                        '<div class="user-info">' +
+                        '<h6 class="mb-0">' +
+                        name +
+                        '</h6>' +
+                        '<small class="text-muted">' +
+                        subtitle +
+                        '</small>' +
+                        '</div>' +
+                        '</div>' +
+                        '</a>'
+                      );
+                    },
+                    notFound:
+                      '<div class="not-found px-3 pb-2">' +
+                      '<h6 class="suggestions-header text-primary mt-4 mb-2">اعضا</h6>' +
+                      '<p class="py-2 mb-0"><i class="bx bx-error-circle bx-xs me-2"></i> نتیجه‌ای پیدا نشد</p>' +
+                      '</div>'
+                  }
+                }
+              )
+              //On typeahead result render.
+              .bind('typeahead:render', function () {
+                // Show content backdrop,
+                contentBackdrop.addClass('show').removeClass('fade');
+              })
+              // On typeahead select
+              .bind('typeahead:select', function (ev, suggestion) {
+                // Open selected page
+                if (suggestion.url) {
+                  window.location = suggestion.url;
+                }
+              })
+              // On typeahead close
+              .bind('typeahead:close', function () {
+                // Clear search
+                searchInput.val('');
+                $this.typeahead('val', '');
+                // Hide search input wrapper
+                searchInputWrapper.addClass('d-none');
+                // Fade content backdrop
+                contentBackdrop.addClass('fade').removeClass('show');
+              });
+
+            // On searchInput keyup, Fade content backdrop if search input is blank
+            searchInput.on('keyup', function () {
+              if (searchInput.val() == '') {
+                contentBackdrop.addClass('fade').removeClass('show');
               }
-            }
-          )
-          //On typeahead result render.
-          .bind('typeahead:render', function () {
-            // Show content backdrop,
-            contentBackdrop.addClass('show').removeClass('fade');
-          })
-          // On typeahead select
-          .bind('typeahead:select', function (ev, suggestion) {
-            // Open selected page
-            if (suggestion.url) {
-              window.location = suggestion.url;
-            }
-          })
-          // On typeahead close
-          .bind('typeahead:close', function () {
-            // Clear search
-            searchInput.val('');
-            $this.typeahead('val', '');
-            // Hide search input wrapper
-            searchInputWrapper.addClass('d-none');
-            // Fade content backdrop
-            contentBackdrop.addClass('fade').removeClass('show');
+            });
           });
 
-        // On searchInput keyup, Fade content backdrop if search input is blank
-        searchInput.on('keyup', function () {
-          if (searchInput.val() == '') {
-            contentBackdrop.addClass('fade').removeClass('show');
-          }
-        });
-      });
+          // Init PerfectScrollbar in search result
+          var psSearch;
+          $('.navbar-search-suggestion').each(function () {
+            psSearch = new PerfectScrollbar($(this)[0], {
+              wheelPropagation: false,
+              suppressScrollX: true
+            });
+          });
 
-      // Init PerfectScrollbar in search result
-      var psSearch;
-      $('.navbar-search-suggestion').each(function () {
-        psSearch = new PerfectScrollbar($(this)[0], {
-          wheelPropagation: false,
-          suppressScrollX: true
-        });
-      });
-
-      searchInput.on('keyup', function () {
-        psSearch.update();
-      });
+          searchInput.on('keyup', function () {
+            psSearch.update();
+          });
+        } catch (err) {
+          console.error('Failed to load search data:', err);
+        }
+      }
+      initSearchTypeahead();
     }
   });
 }

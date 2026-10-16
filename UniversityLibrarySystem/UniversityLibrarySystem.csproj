@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\Microsoft.Net.Compilers.4.1.0\build\Microsoft.Net.Compilers.props" Condition="Exists('..\packages\Microsoft.Net.Compilers.4.1.0\build\Microsoft.Net.Compilers.props')" />
   <Import Project="..\packages\EntityFramework.6.5.1\build\EntityFramework.props" Condition="Exists('..\packages\EntityFramework.6.5.1\build\EntityFramework.props')" />
@@ -49,6 +49,46 @@
   <ItemGroup>
     <Reference Include="BotDetect, Version=4.4.2.0, Culture=neutral, PublicKeyToken=74616036388b765f, processorArchitecture=MSIL">
       <HintPath>..\packages\Captcha.4.4.2\lib\net35\BotDetect.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="AWSSDK.Core">
+      <HintPath>..\packages\AWSSDK.Core.3.7.400.28\lib\net45\AWSSDK.Core.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="AWSSDK.CloudWatch">
+      <HintPath>..\packages\AWSSDK.CloudWatch.3.7.400.28\lib\net45\AWSSDK.CloudWatch.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="AWSSDK.SimpleSystemsManagement">
+      <HintPath>..\packages\AWSSDK.SimpleSystemsManagement.3.7.400.28\lib\net45\AWSSDK.SimpleSystemsManagement.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- cr-dotnet-1033: Amazon DynamoDB SDK - distributed locking for cloud initialization -->
+    <Reference Include="AWSSDK.DynamoDBv2">
+      <HintPath>..\packages\AWSSDK.DynamoDBv2.3.7.400.28\lib\net45\AWSSDK.DynamoDBv2.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- cr-dotnet-0123: AWS Secrets Manager SDK - replaces hardcoded secrets in Web.config / source code -->
+    <Reference Include="AWSSDK.SecretsManager">
+      <HintPath>..\packages\AWSSDK.SecretsManager.3.7.400.28\lib\net45\AWSSDK.SecretsManager.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- cr-dotnet-1032: AWS S3 SDK - replaces Server.MapPath local filesystem access with S3 cloud storage -->
+    <Reference Include="AWSSDK.S3">
+      <HintPath>..\packages\AWSSDK.S3.3.7.400.28\lib\net45\AWSSDK.S3.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- cr-dotnet-1014: Polly retry policy for transient AWS API Gateway errors (503, timeout) -->
+    <Reference Include="Polly">
+      <HintPath>..\packages\Polly.7.2.4\lib\net472\Polly.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Polly.Extensions.Http">
+      <HintPath>..\packages\Polly.Extensions.Http.3.0.0\lib\netstandard2.0\Polly.Extensions.Http.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Http.Polly">
+      <HintPath>..\packages\Microsoft.Extensions.Http.Polly.6.0.26\lib\net462\Microsoft.Extensions.Http.Polly.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="EntityFramework, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
@@ -737,6 +777,12 @@
     <Compile Include="Classes\smsClass.cs" />
     <Compile Include="Classes\UserRole.cs" />
     <Compile Include="Classes\UserStatus.cs" />
+    <!-- cr-dotnet-0123: AWS Secrets Manager helper - retrieves secrets at runtime -->
+    <Compile Include="Classes\AwsSecretsManagerHelper.cs" />
+    <!-- cr-dotnet-0123: ULSDBEntities partial class extension - adds connection string constructor -->
+    <Compile Include="MainModel.Context.Extensions.cs" />
+    <!-- cr-dotnet-1041: CSP HttpModule - injects Content-Security-Policy headers for cloud security compliance -->
+    <Compile Include="Security\CspHttpModule.cs" />
     <Compile Include="ContactUs.aspx.cs">
       <DependentUpon>ContactUs.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>

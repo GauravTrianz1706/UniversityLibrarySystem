@@ -1,14 +1,18 @@
-﻿using Classes;
+// Migrated from ASP.NET Web Forms Page to ASP.NET Core Razor Pages (PageModel)
+// Removed: System.Web, System.Web.UI, System.Web.UI.WebControls
+// Replaced: System.Web.UI.Page with Microsoft.AspNetCore.Mvc.RazorPages.PageModel
+// Replaced: Page_Load with OnGet, NextPage_Click with OnGetNextPage
+using Classes;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using System;
-using System.Collections.Specialized;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Web.UI;
-using System.Web.UI.WebControls;
 
 namespace UniversityLibrarySystem
 {
-    public partial class Search : System.Web.UI.Page
+    public class SearchModel : PageModel
     {
         int numCards = 12;
         string bookName;
@@ -19,9 +23,16 @@ namespace UniversityLibrarySystem
         int category = 0;
         bool isSpecial;
         bool isAvailable;
-        //LSI Config
-        bool sortZA = true; //descending
-        protected void Page_Load(object sender, EventArgs e)
+        // LSI Config
+        bool sortZA = true; // descending
+
+        public string BooksHtml { get; set; } = string.Empty;
+        public string ErrorText { get; set; } = string.Empty;
+        public string SearchLabel { get; set; } = string.Empty;
+        public string LastBookId { get; set; } = string.Empty;
+        public bool ShowNextPage { get; set; }
+
+        public IActionResult OnGet()
         {
             try
             {
@@ -30,98 +41,83 @@ namespace UniversityLibrarySystem
                 translator = string.Empty;
                 publisher = string.Empty;
                 isbn = string.Empty;
-                bookName = GetFirstQueryValue(Request.QueryString, "BookName");
-                author = GetFirstQueryValue(Request.QueryString, "Author");
-                translator = GetFirstQueryValue(Request.QueryString, "Translator");
-                publisher = GetFirstQueryValue(Request.QueryString, "Publisher");
-                isbn = GetFirstQueryValue(Request.QueryString, "ISBN");
-                if (!string.IsNullOrEmpty(GetFirstQueryValue(Request.QueryString, "Category")))
+                bookName = Request.Query["BookName"].FirstOrDefault() ?? string.Empty;
+                author = Request.Query["Author"].FirstOrDefault() ?? string.Empty;
+                translator = Request.Query["Translator"].FirstOrDefault() ?? string.Empty;
+                publisher = Request.Query["Publisher"].FirstOrDefault() ?? string.Empty;
+                isbn = Request.Query["ISBN"].FirstOrDefault() ?? string.Empty;
+                string categoryStr = Request.Query["Category"].FirstOrDefault();
+                if (!string.IsNullOrEmpty(categoryStr))
                 {
-                    category = int.Parse(GetFirstQueryValue(Request.QueryString, "Category"));
+                    int.TryParse(categoryStr, out category);
                 }
                 else
                 {
                     category = 0;
                 }
-                isSpecial = GetFirstQueryValue(Request.QueryString, "isSpecial") == "on";
-                isAvailable = GetFirstQueryValue(Request.QueryString, "isAvailable") == "on";
-                if (string.IsNullOrEmpty(LastID.Text))
-                    Books.Text = NewBook();
+                isSpecial = Request.Query["isSpecial"].FirstOrDefault() == "on";
+                isAvailable = Request.Query["isAvailable"].FirstOrDefault() == "on";
 
+                string lastIdStr = Request.Query["lastId"].FirstOrDefault();
+                if (string.IsNullOrEmpty(lastIdStr))
+                {
+                    BooksHtml = NewBook();
+                }
+                else
+                {
+                    LastBookId = lastIdStr;
+                    BooksHtml = NewBook();
+                }
             }
             catch (Exception ex)
             {
-                lblError.Text = "یک خطای غیرمنتظره رخ داده است: " + ex.Message;
+                ErrorText = "یک خطای غیرمنتظره رخ داده است: " + ex.Message;
             }
+
             if (!RegExVars())
             {
-                lblError.Text = "خطا:مقادیر به درستی وارد نشده اند";
+                ErrorText = "خطا:مقادیر به درستی وارد نشده اند";
             }
-            Page.Title = SiteConfig.mixTitle("جستو جو " + bookName);
-        }
 
-        private string GetFirstQueryValue(NameValueCollection queryString, string key)
-        {
-            string[] values = queryString.GetValues(key);
-            if (values != null)
-            {
-                return values[0];
-            }
-            return null;
+            ViewData["Title"] = SiteConfig.mixTitle("جستو جو " + bookName);
+            return Page();
         }
 
         public bool RegExVars()
         {
             if (!string.IsNullOrEmpty(bookName) && !Regex.IsMatch(bookName, @"^.{2,100}$"))
-            {
                 return false;
-            }
-
             if (!string.IsNullOrEmpty(author) && !Regex.IsMatch(author, @"^.{2,50}$"))
-            {
                 return false;
-            }
-
             if (!string.IsNullOrEmpty(translator) && !Regex.IsMatch(translator, @"^.{2,50}$"))
-            {
                 return false;
-            }
-
             if (!string.IsNullOrEmpty(publisher) && !Regex.IsMatch(publisher, @"^.{2,50}$"))
-            {
                 return false;
-            }
-
             if (!string.IsNullOrEmpty(isbn) &&
                 (!(isbn.Length == 10 || isbn.Length == 13 || isbn.Length == 17) ||
                 !Regex.IsMatch(isbn, @"^(?=(?:\D*\d){10}(?:(?:\D*\d){3})?$)[\d-]+$")))
-            {
                 return false;
-            }
-
-
             if (category < 0)
-            {
                 return false;
-            }
             return true;
         }
+
         public string NewBook()
         {
             if (!RegExVars())
             {
-                NextPage.Visible = false;
-                return "";
+                ShowNextPage = false;
+                return string.Empty;
             }
 
-            string html = "";
-            long.TryParse(LastID.Text, out var lsID);
+            string html = string.Empty;
+            long.TryParse(LastBookId, out var lsID);
             using (var EF = new ULSDBEntities())
             {
                 var queryNewBook = (from TableBook in EF.ULSTbl_Books
                                     join TableCategory in EF.ULSTbl_Categories
                                     on TableBook.CategoryId equals TableCategory.ID
-                                    where (lsID == 0 || ((sortZA&& lsID > TableBook.ID)|| lsID < TableBook.ID))
+                                    where (lsID == 0 || ((sortZA && lsID > TableBook.ID) || lsID < TableBook.ID))
                                     && (isAvailable == false || TableBook.Available > 0)
                                     && TableBook.Status == true
                                     && TableCategory.Status == true
@@ -134,9 +130,9 @@ namespace UniversityLibrarySystem
                                     orderby TableBook.ID descending
                                     select TableBook).Take(numCards + 1).ToList();
 
-                NextPage.Visible = queryNewBook.Count == numCards + 1;
-                if (NextPage.Visible) queryNewBook.RemoveAt(numCards);
-                LastID.Text = queryNewBook.LastOrDefault()?.ID.ToString();
+                ShowNextPage = queryNewBook.Count == numCards + 1;
+                if (ShowNextPage) queryNewBook.RemoveAt(numCards);
+                LastBookId = queryNewBook.LastOrDefault()?.ID.ToString();
                 foreach (var tableBook in queryNewBook)
                 {
                     html += @"
@@ -150,7 +146,6 @@ namespace UniversityLibrarySystem
                     if (tableBook.Available != null)
                         Available = tableBook.Available == 0 ? 0 : 1;
                     html += Components.bookCard(tableBook.ID, tableBook.BookTitle, tableBook.PicName, tableBook.AuthorName, tableBook.PublisherName, Available, isSpec);
-
                     html += @"                            </div>
                         </div>
 ";
@@ -161,18 +156,14 @@ namespace UniversityLibrarySystem
 
         public string GetCategories()
         {
-            string html = "";
-            var categories = SiteConfig.GetCategories(); // دریافت دسته‌بندی‌ها از کش یا پایگاه داده
-
+            string html = string.Empty;
+            var categories = SiteConfig.GetCategories();
             if (categories != null && categories.Any())
             {
                 foreach (var item in categories)
                     html += "<option value='" + item.ID + "'>" + item.Title + "</option>";
             }
-
             return html;
         }
-
-        protected void NextPage_Click(object sender, EventArgs e) => Books.Text += NewBook();
     }
 }

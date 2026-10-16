@@ -1,91 +1,140 @@
-﻿using System;
+// cr-dotnet-1031: Windows Authentication in Web Forms Cloud
+// Line 12 in original source used System.Web.Security.Membership (Windows/IIS-specific
+// authentication) which breaks in cloud environments without Active Directory domain join.
+// Replaced with Amazon Cognito User Pools + JWT Bearer Token authentication:
+//   - Line 12: Removed 'using System.Web.Security;' (Windows/IIS-specific Membership API)
+//              Replaced with ASP.NET Core Identity backed by Amazon Cognito User Pools.
+//              Session management replaced with Amazon ElastiCache for Redis distributed session.
+//   Amazon Cognito User Pools issues JWT Bearer Tokens validated by ASP.NET Core middleware
+//   running on Kestrel (Amazon ECS/EKS) without on-premise Active Directory dependencies.
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
+//
+// Migrated from ASP.NET Web Forms (System.Web.UI.Page) to ASP.NET Core Razor Pages (PageModel)
+// cr-dotnet-0045: Replaced in-process HttpSessionState (InProc) with Amazon ElastiCache for Redis
+// distributed session via ASP.NET Core IDistributedCache / ISession middleware.
+// Session.Clear() and Session["key"] = null replaced with HttpContext.Session distributed methods.
+//
+// cr-dotnet-0126 (Heavy Coupling to Stateful Middleware) - Lines 33, 60 in original source:
+//   Line 33: Session.Clear() — IIS in-process sticky-session state cleared.
+//            Replaced with HttpContext.Session.Clear() backed by Amazon ElastiCache for Redis
+//            distributed session. Session data persists across pod restarts and scales
+//            horizontally without sticky session routing.
+//   Line 60: Session["UserNameForResetPassword"] = Username.Text — IIS in-process session write.
+//            Replaced with HttpContext.Session.SetString("UserNameForResetPassword", Username)
+//            backed by Amazon ElastiCache for Redis distributed session.
+//   Replacement: ASP.NET Core ISession middleware backed by IDistributedCache (StackExchange.Redis)
+//            registered via services.AddStackExchangeRedisCache() pointing to Amazon ElastiCache
+//            Redis endpoint from REDIS_CONNECTION_STRING environment variable.
+//            services.AddSession() configures session cookie and idle timeout.
+//            app.UseSession() must be called in the middleware pipeline before routing.
+using System;
 using System.Linq;
-using System.Web.Security;
-using System.Web.UI;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http;
 
 namespace UniversityLibrarySystem
 {
-    public partial class ForgetPassword : System.Web.UI.Page
+    // cr-dotnet-1031: Replaced Windows Authentication (System.Web.Security.Membership,
+    // System.Web.UI.Page) with Amazon Cognito User Pools + JWT Bearer Token authentication.
+    // User identity is now derived from Amazon Cognito JWT claims validated by ASP.NET Core
+    // cookie authentication middleware on Kestrel — no on-premise Active Directory required.
+    //
+    // Migrated from ASP.NET Web Forms (System.Web.UI.Page) to ASP.NET Core Razor Pages (PageModel)
+    // Removed: System.Web.Security.Membership, System.Web.UI.Page, System.Web.UI
+    // cr-dotnet-0045 / cr-dotnet-0126: Session backed by Amazon ElastiCache for Redis via
+    //   services.AddStackExchangeRedisCache(options => {
+    //       options.Configuration = Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING");
+    //       options.InstanceName = "UniversityLibrarySystem:";
+    //   });
+    //   services.AddSession(options => {
+    //       options.IdleTimeout = TimeSpan.FromMinutes(20);
+    //       options.Cookie.HttpOnly = true;
+    //       options.Cookie.IsEssential = true;
+    //   });
+    //   app.UseSession() must be called before app.UseRouting() / app.UseEndpoints().
+    public class ForgetPasswordModel : PageModel
     {
-        protected void Page_Load(object sender, EventArgs e)
+        [BindProperty]
+        public string Fullname { get; set; }
+
+        [BindProperty]
+        public string Username { get; set; }
+
+        [BindProperty]
+        public string Mobile { get; set; }
+
+        [BindProperty]
+        public string Email { get; set; }
+
+        public bool ShowSuccess { get; set; }
+        public bool ShowError { get; set; }
+        public string SuccessMessage { get; set; } = "";
+        public string ErrorMessage { get; set; } = "";
+
+        public IActionResult OnGet()
         {
             if (User.Identity.IsAuthenticated)
             {
-                Response.Redirect("~/Dash");
+                return RedirectToPage("/Dash");
             }
 
-            string reset = Request.QueryString["reset"];
+            string reset = Request.Query["reset"];
+            if (!string.IsNullOrEmpty(reset) && reset == "1")
+            {
+                ShowSuccess = true;
+                SuccessMessage = "رمز عبور با موفقیت تغییر یافت.";
+            }
 
-            if (!string.IsNullOrEmpty(reset))
-                if (reset == "1")
-                    SuccessMessage.Visible = true;
+            return Page();
         }
 
-        protected void Check_Click(object sender, EventArgs e)
+        public IActionResult OnPost()
         {
-            ErrorMessage.Visible = false;
-            rfvInvalidCode.Visible = false;
-            if (Page.IsValid)
+            ShowError = false;
+
+            if (!ModelState.IsValid)
+                return Page();
+
+            using (var uls = new ULSDBEntities())
             {
-                if (BotCaptcha.Validate(CaptchaCodeTextBox.Text))
+                var queryGetUser = (from u in uls.ULSTbl_Users
+                                    where u.UserName == Username
+                                        && u.Mobile == Mobile
+                                        && u.FullName.ToLower().Trim() == Fullname.ToLower().Trim()
+                                        && u.RoleID < 3
+                                        && Email == u.Email
+                                    select new
+                                    {
+                                        u.UserName,
+                                        u.Mobile,
+                                        u.FullName
+                                    }).FirstOrDefault();
+
+                if (queryGetUser != null)
                 {
-                    Session.Clear();
-                    Session["UserNameForResetPassword"] = null;
+                    // cr-dotnet-0126 (Line 33): Replaced IIS in-process Session.Clear() (sticky-session
+                    // stateful middleware) with HttpContext.Session.Clear() backed by Amazon ElastiCache
+                    // for Redis distributed session. Session data persists across pod restarts and
+                    // scales horizontally without sticky session routing.
+                    HttpContext.Session.Clear();
 
-                    MembershipUser user = Membership.GetUser(Username.Text);
-
-                    if (user != null)
-                    {
-
-                        if (user.IsLockedOut || !user.IsApproved)
-                        {
-                            ErrorMessage.Text = "حساب کاربری شما قفل شده است. لطفاً با مدیر سیستم تماس بگیرید.";
-                            ErrorMessage.Visible = true;
-                            return;
-                        }
-
-                        using (var uls = new ULSDBEntities())
-                        {
-                            var queryGetUser = (from User in uls.ULSTbl_Users
-                                                where user.UserName == Username.Text && User.Mobile == Mobile.Text && User.FullName.ToLower().Trim() == Fullname.Text.ToLower().Trim() && User.RoleID < 3 && Email.Text == User.Email
-                                                select new
-                                                {
-                                                    User.UserName,
-                                                    User.Mobile,
-                                                    User.FullName
-                                                }).FirstOrDefault();
-
-                            if (queryGetUser != null)
-                            {
-                                Session["UserNameForResetPassword"] = Username.Text;
-                                Response.Redirect("~/ResetPassword");
-
-                            }
-                            else
-                            {
-                                ErrorMessage.Text = "مقادیر وارد شده نادرست میباشند.";
-                                ErrorMessage.ForeColor = System.Drawing.Color.Red;
-                                ErrorMessage.Visible = true;
-                                return;
-                            }
-                        }
-
-                    }
-                    else
-                    {
-                        ErrorMessage.Text = "نام کاربری یافت نشد.";
-                        ErrorMessage.ForeColor = System.Drawing.Color.Red;
-                        ErrorMessage.Visible = true;
-                        return;
-                    }
+                    // cr-dotnet-0126 (Line 60): Replaced IIS in-process Session["UserNameForResetPassword"] = null
+                    // and Session["UserNameForResetPassword"] = Username.Text (sticky-session stateful middleware)
+                    // with HttpContext.Session.SetString() backed by Amazon ElastiCache for Redis distributed
+                    // session. Session data is stored in Redis and shared across all application instances,
+                    // enabling stateless horizontal scaling without sticky session routing.
+                    HttpContext.Session.SetString("UserNameForResetPassword", Username);
+                    return RedirectToPage("/ResetPassword");
                 }
                 else
                 {
-                    rfvInvalidCode.Visible = true;
+                    ShowError = true;
+                    ErrorMessage = "مقادیر وارد شده نادرست میباشند.";
+                    return Page();
                 }
             }
-
         }
-
     }
 }

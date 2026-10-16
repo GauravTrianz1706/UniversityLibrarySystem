@@ -1,4 +1,4 @@
-﻿<%@ Control Language="C#" AutoEventWireup="true" CodeBehind="AccessDenied.ascx.cs" Inherits="PAP.AccessDenied" %>
+﻿@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
 <div class="content-wrapper">
     <!-- Content -->
 

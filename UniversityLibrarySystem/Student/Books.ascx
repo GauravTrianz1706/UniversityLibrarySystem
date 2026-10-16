@@ -1,4 +1,6 @@
-﻿<%@ Control Language="C#" AutoEventWireup="true" CodeBehind="Books.ascx.cs" Inherits="UniversityLibrarySystem.Student.Books" %>
+@* Migrated from ASP.NET Web Forms UserControl to ASP.NET Core Razor Pages partial view *@
+@using Classes
+@model UniversityLibrarySystem.Student.BooksModel
 <style>
     .activepage {
         line-height: 2;
@@ -28,95 +30,103 @@
         <h4 class="py-3 breadcrumb-wrapper mb-4" id="titlePage">مدیریت کتاب ها
         </h4>
         <div class="mb-0">
-            <asp:Panel ID="PanelSearch" Visible="true" runat="server">
-                <form action="Books">
-                    <div class="row">
-                        <div class="col-12" style="display: block ruby;">
-                            <div class="col-md-6 m-1 col-12">
-                                <input id="txtText" name="txtText" type="text" class="form-control" placeholder="عنوان">
-                            </div>
-                            <div class="col-md-5 m-1 col-12">
-                                <button type="submit" class="btn btn-success"><i class="bx bx-search-alt-2"></i>&nbsp;جستجو</button>
-                            </div>
-                            <div class="col-lg-5 m-1 col-12">
-                                <select class="form-select" id="drpMode" name="Mode" aria-label="Default select example">
-                                    <option value="0">همه موارد</option>
-                                    <option value="1"><%=Classes.ReserveStatus.ReserveStatusToText(1) %></option>
-                                    <option value="2"><%=Classes.ReserveStatus.ReserveStatusToText(2) %></option>
-                                    <option value="3"><%=Classes.ReserveStatus.ReserveStatusToText(3) %></option>
-                                    <option value="4"><%=Classes.ReserveStatus.ReserveStatusToText(4) %></option>
-                                </select>
-                            </div>
+            <form action="Books" method="get">
+                <div class="row">
+                    <div class="col-12" style="display: block ruby;">
+                        <div class="col-md-6 m-1 col-12">
+                            <input id="txtText" name="txtText" type="text" class="form-control" placeholder="عنوان">
+                        </div>
+                        <div class="col-md-5 m-1 col-12">
+                            <button type="submit" class="btn btn-success"><i class="bx bx-search-alt-2"></i>&nbsp;جستجو</button>
+                        </div>
+                        <div class="col-lg-5 m-1 col-12">
+                            <select class="form-select" id="drpMode" name="Mode" aria-label="Default select example">
+                                <option value="0">همه موارد</option>
+                                <option value="1">@ReserveStatus.ReserveStatusToText(1)</option>
+                                <option value="2">@ReserveStatus.ReserveStatusToText(2)</option>
+                                <option value="3">@ReserveStatus.ReserveStatusToText(3)</option>
+                                <option value="4">@ReserveStatus.ReserveStatusToText(4)</option>
+                            </select>
                         </div>
                     </div>
-                </form>
-            </asp:Panel>
-            <form action="Books">
+                </div>
+            </form>
+            <form action="Books" method="get">
                 <input id="Text1" name="Value" value="New" hidden="hidden" type="text" />
-                <asp:Literal ID="LiteralMessage" runat="server"></asp:Literal>
+                @if (!string.IsNullOrEmpty(Model.LiteralMessage))
+                {
+                    @Html.Raw(Model.LiteralMessage)
+                }
             </form>
         </div>
-        <form runat="server">
-            <asp:ScriptManager ID="ScriptManager1" runat="server"></asp:ScriptManager>
-            <!-- Striped Rows -->
-            <div class="card">
-                <div class="table-responsive text-nowrap">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>تصویر کتاب</th>
-                                <th>عنوان</th>
-                                <th>دسته بندی</th>
-                                <th>وضعیت رزرو</th>
-                                <th>تاریخ شروع</th>
-                                <th>تاریخ پایان</th>
-                                <th>مبلغ قابل پرداخت</th>
-                                <th>مشاهده کتاب</th>
-                            </tr>
-                        </thead>
-                        <tbody class="table-border-bottom-0">
-                            <asp:ListView ID="ProuductDefualt" runat="server" DataSourceID="LinqDataSourceNews"
-                                ItemPlaceholderID="brandplacea42">
-                                <LayoutTemplate>
-                                    <asp:PlaceHolder ID="brandplacea42" runat="server"></asp:PlaceHolder>
-                                </LayoutTemplate>
-                                <ItemTemplate>
-                                    <tr>
-                                        <td>
-                                            <div class="avatar mr-1 avatar-xl">
-                                                <img class="example-image" onerror="this.src='../img/Error/no-photo.png'"
-                                                    src='../img/Books/<%#Eval("PicName")%>' alt="" /></a>
-                                            </div>
-                                        </td>
-                                        <td><%#Eval("BookTitle")%></td>
-                                        <td><%#Eval("CatName")%></td>
-                                        <td><%#Eval("StatusHtml") %></td>
-                                        <td><%#Eval("ResTempStartDate")%></td>
-                                        <td><%#Eval("ResTempEndDate")%></td>
-                                        <td><%#Eval("BookFine")%></td>
-                                        <td>
-                                            <a class="btn btn-primary" href="../BookDetail-<%#Eval("BookID")%>-<%#Uri.EscapeDataString(Eval("BookTitle").ToString())%>"></i>مشاهده</a>
-                                        </td>
-                                    </tr>
-                                </ItemTemplate>
-                            </asp:ListView>
-                            <asp:LinqDataSource ID="LinqDataSourceNews" runat="server" OnSelecting="LinqDataSourceNews_Selecting">
-                            </asp:LinqDataSource>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="col-lg-4" style="padding: 1rem;">
-                    <nav aria-label="Page navigation">
-                        <asp:DataPager ID="DataPager1" runat="server" class="pagination pagination-info" style="display: flex;" PagedControlID="ProuductDefualt" PageSize="45">
-                            <Fields>
-                                <asp:NumericPagerField CurrentPageLabelCssClass="activepage" NextPageText=""
-                                    PreviousPageText="" NumericButtonCssClass="page-link noactivepage" ButtonType="Button" />
-                            </Fields>
-                        </asp:DataPager>
-                    </nav>
-                </div>
+        <!-- Striped Rows -->
+        <div class="card">
+            <div class="table-responsive text-nowrap">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>تصویر کتاب</th>
+                            <th>عنوان</th>
+                            <th>دسته بندی</th>
+                            <th>وضعیت رزرو</th>
+                            <th>تاریخ شروع</th>
+                            <th>تاریخ پایان</th>
+                            <th>مبلغ قابل پرداخت</th>
+                            <th>مشاهده کتاب</th>
+                        </tr>
+                    </thead>
+                    <tbody class="table-border-bottom-0">
+                        @if (Model.BookItems != null)
+                        {
+                            @foreach (var item in Model.BookItems)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="avatar mr-1 avatar-xl">
+                                            <img class="example-image" onerror="this.src='../img/Error/no-photo.png'"
+                                                 src="@("../img/Books/" + item.PicName)" alt="" />
+                                        </div>
+                                    </td>
+                                    <td>@item.BookTitle</td>
+                                    <td>@item.CatName</td>
+                                    <td>@Html.Raw(item.StatusHtml)</td>
+                                    <td>@item.ResTempStartDate</td>
+                                    <td>@item.ResTempEndDate</td>
+                                    <td>@item.BookFine</td>
+                                    <td>
+                                        <a class="btn btn-primary" href="@("../BookDetail-" + item.BookID + "-" + Uri.EscapeDataString(item.BookTitle))">مشاهده</a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
             </div>
-        </form>
+            <div class="col-lg-4" style="padding: 1rem;">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination pagination-info" style="display: flex;">
+                        @if (Model.CurrentPage > 1)
+                        {
+                            <li class="page-item">
+                                <a class="page-link noactivepage" href="?page=@(Model.CurrentPage - 1)@Model.QueryParams">&laquo;</a>
+                            </li>
+                        }
+                        @for (int i = 1; i <= Model.TotalPages; i++)
+                        {
+                            <li class="page-item">
+                                <a class="page-link @(i == Model.CurrentPage ? "activepage" : "noactivepage")" href="?page=@i@Model.QueryParams">@i</a>
+                            </li>
+                        }
+                        @if (Model.CurrentPage < Model.TotalPages)
+                        {
+                            <li class="page-item">
+                                <a class="page-link noactivepage" href="?page=@(Model.CurrentPage + 1)@Model.QueryParams">&raquo;</a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            </div>
+        </div>
     </div>
     <!-- / Content -->
 
@@ -134,11 +144,7 @@
                 dropdown.value = mode;
                 if (mode != 0)
                     document.getElementById("titlePage").innerText += " (" + dropdown.options[mode].text + ")";
-                if (mode == 3) {
-                    document.getElementById('btnGoFine').style.display = 'none';
-                }
             }
-
         }
 
         setUrl();

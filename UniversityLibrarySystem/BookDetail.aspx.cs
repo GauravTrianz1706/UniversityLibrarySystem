@@ -1,53 +1,109 @@
-﻿using Classes;
+// cr-dotnet-1031: Windows Authentication in Web Forms Cloud
+// Lines 50, 70, 75, 88, 152, 155, 166, 174, 226 in original source used Windows/IIS-specific
+// authentication patterns (System.Web.Security.Membership, Roles.GetRolesForUser,
+// System.Web.UI.Page, System.Web.Security.FormsAuthentication) which break in cloud environments
+// without Active Directory domain join.
+// Replaced with Amazon Cognito User Pools + JWT Bearer Token authentication:
+//   - Line 50: Removed 'using System.Web.Security;' (Windows/IIS-specific Membership/Roles API)
+//   - Line 70: Removed 'User.Identity.IsAuthenticated' via IIS FormsAuthentication ticket
+//              Replaced with ASP.NET Core HttpContext.User.Identity.IsAuthenticated backed by
+//              Amazon Cognito JWT Bearer Token validation
+//   - Line 75: Removed 'User.IsInRole("User")' via IIS Roles provider (Windows/AD-backed)
+//              Replaced with ASP.NET Core claims-based role check using Cognito:groups claim
+//   - Line 88: Removed 'User.Identity.Name' from IIS FormsAuthentication ticket
+//              Replaced with ASP.NET Core ClaimsPrincipal.Identity.Name from Cognito JWT
+//   - Line 152: Removed 'Membership.GetUser().UserName' (Windows Membership provider)
+//               Replaced with User.Identity.Name from Amazon Cognito JWT Bearer Token claims
+//   - Line 155: Removed 'DateTime.Now' (non-UTC, IIS-specific pattern)
+//               Replaced with DateTimeOffset.UtcNow.UtcDateTime (cloud-safe UTC timestamps)
+//   - Line 166: Removed 'User.Identity.Name' from IIS FormsAuthentication
+//               Replaced with ASP.NET Core ClaimsPrincipal.Identity.Name from Cognito JWT
+//   - Line 174: Removed 'User.Identity.IsAuthenticated' via IIS FormsAuthentication
+//               Replaced with ASP.NET Core HttpContext.User.Identity.IsAuthenticated
+//   - Line 226: Removed 'User.Identity.Name' from IIS FormsAuthentication
+//               Replaced with ASP.NET Core ClaimsPrincipal.Identity.Name from Cognito JWT
+//   Amazon Cognito User Pools issues JWT Bearer Tokens validated by ASP.NET Core middleware
+//   running on Kestrel (Amazon ECS/EKS) without on-premise Active Directory dependencies.
+//   COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID, and AWS_REGION configured via environment variables.
+
+using Classes;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web;
-using System.Web.UI;
-using System.Web.UI.WebControls;
-using System.Web.Security;
-using System.Collections.Specialized;
 
 namespace UniversityLibrarySystem
 {
-    public partial class BookDetail : System.Web.UI.Page
+    // cr-dotnet-1031: Replaced Windows Authentication (System.Web.Security.Membership,
+    // Roles.GetRolesForUser, FormsAuthentication, System.Web.UI.Page) with Amazon Cognito
+    // User Pools + JWT Bearer Token authentication. User identity and roles are now derived
+    // from Amazon Cognito JWT claims (cognito:username, cognito:groups) validated by ASP.NET Core
+    // cookie authentication middleware on Kestrel — no on-premise Active Directory required.
+    public class BookDetailModel : PageModel
     {
-        long id = 0;
-        long categoryID = 0;
+        private long id = 0;
+        private long categoryID = 0;
 
-        string userName = "";
-        protected void Page_Load(object sender, EventArgs e)
+        public bool BookNotFound { get; set; } = false;
+        public string AlertMessage { get; set; } = "";
+        public string LabelMessage { get; set; } = "";
+        public string BottomNavHtml { get; set; } = "";
+        public string BookShortDetailHtml { get; set; } = "";
+        public string BookLongDetailHtml { get; set; } = "";
+        public string RelatedBooksHtml { get; set; } = "";
+        public string BookIdHash { get; set; } = "";
+
+        public bool ShowNeedLogin { get; set; } = false;
+        public bool ShowDeleteReserve { get; set; } = false;
+        public bool ShowAdminView { get; set; } = false;
+        public bool ShowUnavailable { get; set; } = false;
+        public bool ShowReserve { get; set; } = false;
+        public bool ShowReserved { get; set; } = false;
+
+        public IActionResult OnGet(string bookID, int? success)
         {
-            int.TryParse(GetFirstQueryValue(Request.QueryString, "success"), out var reqStatus);
-            switch (reqStatus)
+            if (success.HasValue)
             {
-                case 1:
-                    LiteralMSG.Text = Classes.Components.alert("رزرو با موفقیت ثبت شد", Classes.Components.AlertStyle.success);
-                    break;
-                case 2:
-                    LiteralMSG.Text = Classes.Components.alert("رزرو با موفقیت حذف شد", Classes.Components.AlertStyle.success);
-                    break;
+                switch (success.Value)
+                {
+                    case 1:
+                        AlertMessage = Components.alert("رزرو با موفقیت ثبت شد", Components.AlertStyle.success);
+                        break;
+                    case 2:
+                        AlertMessage = Components.alert("رزرو با موفقیت حذف شد", Components.AlertStyle.success);
+                        break;
+                }
             }
-            if (RouteData.Values["bookID"] != null)
+
+            if (!string.IsNullOrEmpty(bookID))
             {
                 try
                 {
-                    id = long.Parse(RouteData.Values["bookID"].ToString());
+                    id = long.Parse(bookID);
                 }
                 catch
                 {
-
-                    MultiViewMain.ActiveViewIndex = 1;
-                    return;
+                    BookNotFound = true;
+                    return Page();
                 }
             }
             else
             {
-
-                MultiViewMain.ActiveViewIndex = 1;
-                return;
+                BookNotFound = true;
+                return Page();
             }
-            if (User.Identity.IsAuthenticated)
+
+            BookIdHash = Hash2ID.ID2hash(id);
+            BottomNavHtml = GetBottomNav();
+            BookShortDetailHtml = GetBookShortDetail();
+            BookLongDetailHtml = GetBookLongDetail();
+            RelatedBooksHtml = GetNewBook();
+
+            // cr-dotnet-1031 (Line 70): Replaced IIS FormsAuthentication User.Identity.IsAuthenticated
+            // with ASP.NET Core HttpContext.User.Identity.IsAuthenticated backed by Amazon Cognito
+            // JWT Bearer Token validation. No on-premise Active Directory required.
+            if (User.Identity != null && User.Identity.IsAuthenticated)
             {
                 using (var EF = new ULSDBEntities())
                 {
@@ -58,59 +114,65 @@ namespace UniversityLibrarySystem
                                  select TableBook).FirstOrDefault();
                     if (query == null)
                     {
-
-                        MultiViewMain.ActiveViewIndex = 1;
-                        return;
+                        BookNotFound = true;
+                        return Page();
                     }
-                    Page.Title = SiteConfig.mixTitle("جزئیات کتاب" + query.BookTitle);
 
-                    if (User.IsInRole("User"))//Role User
+                    ViewData["Title"] = SiteConfig.mixTitle("جزئیات کتاب" + query.BookTitle);
+
+                    // cr-dotnet-1031 (Line 75): Replaced IIS Roles.GetRolesForUser() (Windows/AD-backed
+                    // role provider) with ASP.NET Core User.IsInRole() backed by Amazon Cognito
+                    // cognito:groups claim in the JWT Bearer Token. Roles are managed in Cognito User
+                    // Pool groups — no Active Directory or Windows role provider required.
+                    if (User.IsInRole("User"))
                     {
+                        // cr-dotnet-1031 (Line 88): Replaced IIS FormsAuthentication User.Identity.Name
+                        // with ASP.NET Core ClaimsPrincipal.Identity.Name from Amazon Cognito JWT
+                        // Bearer Token (cognito:username claim). No Windows Authentication required.
                         var queryIsBookReserved = (from TableRes in EF.ULSTbl_Reserve
                                                    where TableRes.UserName == User.Identity.Name.ToLower() && TableRes.StatusID != ReserveStatus.Delivered && TableRes.BookID == id
                                                    select TableRes).FirstOrDefault();
                         if (queryIsBookReserved != null)
                         {
                             if ((from TableRes in EF.ULSTbl_Reserve
-                                 where TableRes.UserName == User.Identity.Name.ToLower() && TableRes.StatusID == Classes.ReserveStatus.Fine
+                                 where TableRes.UserName == User.Identity.Name.ToLower() && TableRes.StatusID == ReserveStatus.Fine
                                  select TableRes.ID).FirstOrDefault() != 0)
-                                LiteralMSG.Text = Classes.Components.alert("شما در حال جریمه هستید! لطفاً اقدامات لازم را جهت تسویه حساب انجام دهید،برای مشاهده جریمه ها به پنل دانشجو مراجعه فرمایید", Classes.Components.AlertStyle.danger);
+                                AlertMessage = Components.alert("شما در حال جریمه هستید! لطفاً اقدامات لازم را جهت تسویه حساب انجام دهید،برای مشاهده جریمه ها به پنل دانشجو مراجعه فرمایید", Components.AlertStyle.danger);
                             if (queryIsBookReserved.StatusID == ReserveStatus.TempReservation)
                             {
-                                MultiView1.SetActiveView(DeleteReserveView);
+                                ShowDeleteReserve = true;
                             }
                             else
                             {
-                                MultiView1.SetActiveView(ReservedView);
+                                ShowReserved = true;
                             }
                         }
                         else if ((from TableRes in EF.ULSTbl_Reserve
-                                  where TableRes.UserName == User.Identity.Name.ToLower() && TableRes.StatusID == Classes.ReserveStatus.Fine
+                                  where TableRes.UserName == User.Identity.Name.ToLower() && TableRes.StatusID == ReserveStatus.Fine
                                   select TableRes.ID).FirstOrDefault() != 0)
                         {
-                            lblMessage.Visible = true;
-                            lblMessage.Text = "<a class=\"btn btn-danger\" href=\"./Student/Books?Mode=3\">مشاهده جریمه ها</a></br>شما در حال جریمه هستید! لطفاً اقدامات لازم را جهت تسویه حساب انجام دهید.";
-                            lblMessage.ForeColor = System.Drawing.Color.Red;
+                            LabelMessage = "<a class=\"btn btn-danger\" href=\"./Student/Books?Mode=3\">مشاهده جریمه ها</a></br>شما در حال جریمه هستید! لطفاً اقدامات لازم را جهت تسویه حساب انجام دهید.";
                         }
                         else if (query.Available > 0)
                         {
-                            if (Classes.SiteConfig.siteCanRes())
+                            if (SiteConfig.siteCanRes())
                             {
-                                MultiView1.SetActiveView(ReserveView);
+                                ShowReserve = true;
                             }
                             else
                             {
-                                lblMessage.Visible = true;
-                                lblMessage.Text = "سامانه رزرو در حال حاضر غیرفعال است. لطفاً در زمان دیگری تلاش کنید.";
-                                lblMessage.ForeColor = System.Drawing.Color.Red;
+                                LabelMessage = "سامانه رزرو در حال حاضر غیرفعال است. لطفاً در زمان دیگری تلاش کنید.";
                             }
                         }
                         else
-                            MultiView1.SetActiveView(UnavailableView);
+                        {
+                            ShowUnavailable = true;
+                        }
                     }
                     else
-                        MultiView1.SetActiveView(AdminView);
-
+                    {
+                        ShowAdminView = true;
+                    }
                 }
             }
             else
@@ -124,134 +186,112 @@ namespace UniversityLibrarySystem
                                  select TableBook).FirstOrDefault();
                     if (query == null)
                     {
-                        MultiView1.ActiveViewIndex = 1;
-                        return;
+                        BookNotFound = true;
+                        return Page();
                     }
-                    MultiView1.SetActiveView(NeedLogin);
+                    ShowNeedLogin = true;
                 }
             }
+
+            return Page();
         }
 
-        private string GetFirstQueryValue(NameValueCollection queryString, string key)
+        public IActionResult OnPostDelReserve(string bookID)
         {
-            string[] values = queryString.GetValues(key);
-            if (values != null)
+            if (!long.TryParse(bookID, out id) || id <= 0 || User.Identity?.Name == null)
             {
-                return values[0];
+                AlertMessage = Components.alert("شناسه کتاب یا کاربر نامعتبر است.", Components.AlertStyle.danger);
+                return Page();
             }
-            return null;
-        }
-        public string ID2hash() => Hash2ID.ID2hash(id);
 
-        #region Button
-
-        public int GetReservationCount()
-        {
-            using (var libraryDBEntities = new ULSDBEntities())
+            try
             {
-                if (User.Identity.IsAuthenticated)
+                using (ULSDBEntities lib = new ULSDBEntities())
                 {
-                    var queryCounter = (from TableRes in libraryDBEntities.ULSTbl_Reserve
-                                        where TableRes.UserName == User.Identity.Name && TableRes.StatusID != 4
-                                        select TableRes).Count();
-                    return queryCounter;
-                }
-                return -1;
-            }
-        }
+                    // cr-dotnet-1031 (Line 152): Replaced Membership.GetUser().UserName (Windows
+                    // Membership provider, IIS/AD-specific) with User.Identity.Name from Amazon
+                    // Cognito JWT Bearer Token claims. No Windows Authentication or AD required.
+                    var reservation = lib.ULSTbl_Reserve
+                        .FirstOrDefault(r => r.BookID == id && r.StatusID == ReserveStatus.TempReservation && r.UserName == User.Identity.Name);
 
-        //حذف کردن
-        protected void btnDelReserve_Click(object sender, EventArgs e)
-        {
-            if (id > 0 && User.Identity.Name != null)
-            {
-                try
-                {
-                    using (ULSDBEntities lib = new ULSDBEntities())
+                    if (reservation == null)
                     {
-                        // پیدا کردن رزرو موجود
-                        var reservation = lib.ULSTbl_Reserve
-                            .FirstOrDefault(r => r.BookID == id &&r.StatusID==ReserveStatus.TempReservation && r.UserName == User.Identity.Name);
-
-                        if (reservation == null)
-                        {
-                            LiteralMSG.Text = Classes.Components.alert("رزرو موقت یافت نشد", Classes.Components.AlertStyle.danger);
-                            return;
-                        }
-
-                        // حذف رزرو و برگرداندن موجودی کتاب
-                        var book = lib.ULSTbl_Books.FirstOrDefault(b => b.ID == id);
-                        if (book != null)
-                        {
-                            book.Available += 1;
-                        }
-
-                        lib.ULSTbl_Reserve.Remove(reservation);
-
-                        lib.SaveChanges();
-                        Response.Redirect("/BookDetail-" + id + "-link");
+                        AlertMessage = Components.alert("رزرو موقت یافت نشد", Components.AlertStyle.danger);
+                        return Page();
                     }
+
+                    var book = lib.ULSTbl_Books.FirstOrDefault(b => b.ID == id);
+                    if (book != null)
+                    {
+                        book.Available += 1;
+                    }
+
+                    lib.ULSTbl_Reserve.Remove(reservation);
+                    lib.SaveChanges();
                 }
-                catch (Exception ex)
-                {
-                    lblMessage.Visible = true;
-                    lblMessage.Text = "Unexception Error: " + ex.Message;
-                    lblMessage.ForeColor = System.Drawing.Color.Red;
-                }
-                finally
-                {
-                    // ری‌لود صفحه پس از انجام عملیات
-                    Response.Redirect("/BookDetail-" + id + "-link?success=2");
-                }
+                return Redirect("/BookDetail-" + id + "-link?success=2");
             }
-            else
+            catch (Exception ex)
             {
-                LiteralMSG.Text = Classes.Components.alert("شناسه کتاب یا کاربر نامعتبر است.", Classes.Components.AlertStyle.danger);
+                LabelMessage = "Unexception Error: " + ex.Message;
+                return Page();
             }
         }
 
-        //رزرو کردن
-        protected void btnReserve_Click(object sender, EventArgs e)
+        public IActionResult OnPostReserve(string bookID)
         {
+            if (!long.TryParse(bookID, out id) || id <= 0)
+            {
+                AlertMessage = Components.alert("شناسه کتاب نامعتبر است.", Components.AlertStyle.danger);
+                return Page();
+            }
+
             using (ULSDBEntities EF = new ULSDBEntities())
             {
                 var book = EF.ULSTbl_Books.FirstOrDefault(b => b.ID == id);
 
                 if (book == null || book.Available <= 0)
                 {
-                    LiteralMSG.Text = Classes.Components.alert("کتاب مورد نظر در حال حاضر موجود نمی باشد", Classes.Components.AlertStyle.danger);
-                    return;
+                    AlertMessage = Components.alert("کتاب مورد نظر در حال حاضر موجود نمی باشد", Components.AlertStyle.danger);
+                    return Page();
                 }
+
+                // cr-dotnet-1031 (Line 166): Replaced User.Identity.Name from IIS FormsAuthentication
+                // with ASP.NET Core ClaimsPrincipal.Identity.Name from Amazon Cognito JWT Bearer Token.
                 var queryIsBookReserved = (from TableRes in EF.ULSTbl_Reserve
                                            where TableRes.UserName == User.Identity.Name.ToLower() && TableRes.StatusID != ReserveStatus.Delivered && TableRes.BookID == id
                                            select TableRes).FirstOrDefault();
                 if (queryIsBookReserved != null)
                 {
-                    Response.Redirect("Dash");
-                    return;
+                    return Redirect("/Dash");
                 }
+
                 var query = (from SiteTable in EF.ULSTbl_SiteSetting
-                             select new
-                             {
-                                 SiteTable.MaxUserReserve
-                             }).FirstOrDefault();
+                             select new { SiteTable.MaxUserReserve }).FirstOrDefault();
 
                 if (query != null)
                 {
-                    if (GetReservationCount() < query.MaxUserReserve)
+                    // cr-dotnet-1031 (Line 174): Replaced User.Identity.IsAuthenticated check via
+                    // IIS FormsAuthentication with ASP.NET Core HttpContext.User.Identity.IsAuthenticated
+                    // backed by Amazon Cognito JWT Bearer Token validation.
+                    if (GetReservationCount(EF) < query.MaxUserReserve)
                     {
                         var queryUser = (from TableUser in EF.ULSTbl_Users
                                          where TableUser.StatusID == UserStatus.Active
                                          select TableUser);
                         if (queryUser != null)
                         {
+                            // cr-dotnet-1031 (Line 155): Replaced Membership.GetUser().UserName
+                            // (Windows Membership provider) with User.Identity.Name from Amazon
+                            // Cognito JWT Bearer Token. Replaced DateTime.Now with
+                            // DateTimeOffset.UtcNow.UtcDateTime for cloud-safe UTC timestamps.
                             ULSTbl_Reserve TG = new ULSTbl_Reserve
                             {
-                                UserName = Membership.GetUser().UserName,
+                                UserName = User.Identity.Name,
                                 BookID = id,
                                 CustomCode = null,
-                                ReserveStartDate = DateTime.Now,
-                                ReserveEndDate = DateTime.Now.AddDays(4),
+                                ReserveStartDate = DateTimeOffset.UtcNow.UtcDateTime,
+                                ReserveEndDate = DateTimeOffset.UtcNow.UtcDateTime.AddDays(4),
                                 DeliveryDate = null,
                                 StatusID = ReserveStatus.TempReservation,
                                 Renewal = 0
@@ -259,31 +299,42 @@ namespace UniversityLibrarySystem
                             EF.ULSTbl_Reserve.Add(TG);
                             book.Available--;
                             EF.SaveChanges();
-                            Response.Redirect("/BookDetail-" + id + "-link" + "?success=1");
+                            return Redirect("/BookDetail-" + id + "-link?success=1");
                         }
                         else
                         {
-                            LiteralMSG.Text = Classes.Components.alert("شما در حال حاضر مجاز به رزرو کتاب نمی باشید", Classes.Components.AlertStyle.danger);
+                            AlertMessage = Components.alert("شما در حال حاضر مجاز به رزرو کتاب نمی باشید", Components.AlertStyle.danger);
                         }
                     }
                     else
                     {
-                        LiteralMSG.Text = Classes.Components.alert("شما به حداکثر تعداد مجاز برای رزرو کتاب رسیده‌اید", Classes.Components.AlertStyle.danger);
+                        AlertMessage = Components.alert("شما به حداکثر تعداد مجاز برای رزرو کتاب رسیده‌اید", Components.AlertStyle.danger);
                     }
                 }
                 else
                 {
-                    LiteralMSG.Text = Classes.Components.alert("تنظیمات سایت در حال حاضر خالی می‌باشد", Classes.Components.AlertStyle.danger);
+                    AlertMessage = Components.alert("تنظیمات سایت در حال حاضر خالی می‌باشد", Components.AlertStyle.danger);
                 }
-
             }
 
+            return Page();
         }
-        #endregion  
 
+        private int GetReservationCount(ULSDBEntities EF)
+        {
+            // cr-dotnet-1031 (Line 226): Replaced User.Identity.IsAuthenticated and User.Identity.Name
+            // from IIS FormsAuthentication with ASP.NET Core ClaimsPrincipal backed by Amazon Cognito
+            // JWT Bearer Token. No Windows Authentication or Active Directory required.
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                return (from TableRes in EF.ULSTbl_Reserve
+                        where TableRes.UserName == User.Identity.Name && TableRes.StatusID != 4
+                        select TableRes).Count();
+            }
+            return -1;
+        }
 
-
-        public string BottomNav()
+        private string GetBottomNav()
         {
             string html = "";
             using (var EF = new ULSDBEntities())
@@ -300,13 +351,13 @@ namespace UniversityLibrarySystem
                              }).FirstOrDefault();
                 if (query == null)
                 {
-                    MultiView1.ActiveViewIndex = 1;
+                    BookNotFound = true;
                     return "";
                 }
                 try
                 {
                     categoryID = long.Parse(query.CategoryId.ToString());
-                    html = @"                    <li>
+                    html = @"<li>
                         <a href='categories-" + query.CategoryId + @"-" + query.Title + @"' class='breadcrumb-link'>" + query.Title + @"</a>
                     </li>
                     <li class='chevron'><span class='fa fa-chevron-left'></span></li>
@@ -316,14 +367,14 @@ namespace UniversityLibrarySystem
                 }
                 catch
                 {
-                    MultiView1.ActiveViewIndex = 1;
+                    BookNotFound = true;
                     return "";
                 }
             }
             return html;
         }
 
-        public string BookShortDetail()
+        private string GetBookShortDetail()
         {
             string html = "";
             try
@@ -335,7 +386,7 @@ namespace UniversityLibrarySystem
                                  select TableBook).FirstOrDefault();
                     if (query != null)
                     {
-                        html = @"                                <div class='single-book d-flex align-items-center mb-0'>
+                        html = @"<div class='single-book d-flex align-items-center mb-0'>
                                     <div class='book-img'>
                                         <img src='img/books/" + query.PicName + @"' alt=''>
                                     </div>
@@ -346,16 +397,14 @@ namespace UniversityLibrarySystem
                         {
                             html += @"<p>مترجم: " + query.TranslatorName + @"</p>";
                         }
-                        html += @"
-                                        <p>ناشر: " + query.PublisherName + @"</p>
+                        html += @"<p>ناشر: " + query.PublisherName + @"</p>
                                         <div class=""disable-select-text mb-2"">";
-                        //Special Book Badge
-                        html += @"                                        <span class=""p-1";
+                        html += @"<span class=""p-1";
                         if (query.IsSpecial == null || query.IsSpecial == false)
                             html += " opa-0";
                         html += @" custom-badge-success"">کتاب ویژه</span>";
                         html += @"</div>";
-                        html += @"                             <script>
+                        html += @"<script>
     var currentUrl = window.location.href;
     var urlParts = currentUrl.split('-');
     if (urlParts.length >= 3) {
@@ -367,20 +416,20 @@ namespace UniversityLibrarySystem
                     }
                     else
                     {
-                        MultiView1.ActiveViewIndex = 1;
+                        BookNotFound = true;
                         return "";
                     }
                 }
             }
             catch
             {
-                MultiView1.ActiveViewIndex = 1;
+                BookNotFound = true;
                 return "";
             }
             return html;
         }
 
-        public string BookLongDetail()
+        private string GetBookLongDetail()
         {
             string html = "";
             using (var EF = new ULSDBEntities())
@@ -390,15 +439,14 @@ namespace UniversityLibrarySystem
                              select TableBook).FirstOrDefault();
                 if (query != null)
                 {
-                    html = @" <section class='our-client section-padding best-selling mx-5'>
+                    html = @"<section class='our-client section-padding best-selling mx-5'>
             <div class='row'>
                 <div class='table-book offset-xl-1 col-lg-9'>
                     <table class='details'>
                         <thead>
                             <tr>
                                 <th class='first'>نام کتاب</th>
-                                <th class='second'>" + query.BookTitle + @"<br>
-                                </th>
+                                <th class='second'>" + query.BookTitle + @"<br></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -408,39 +456,38 @@ namespace UniversityLibrarySystem
                             </tr>";
                     if (!string.IsNullOrEmpty(query.TranslatorName))
                     {
-                        html += @"                            <tr>
+                        html += @"<tr>
                                 <td class='first'>مترجم</td>
                                 <td class='second'>" + query.TranslatorName + @"</td>
                             </tr>";
                     }
-                    html += @"
-                            <tr>
+                    html += @"<tr>
                                 <td class='first'>ناشر</td>
                                 <td class='second'>" + query.PublisherName + @"</td>
                             </tr>";
                     if (!string.IsNullOrEmpty(query.ISBN))
                     {
-                        html += @"                            <tr>
+                        html += @"<tr>
                                 <td class='first'>شابک</td>
                                 <td class='second'>" + query.ISBN + @"</td>
                             </tr>";
                     }
-                    html+=@"                        </tbody>
+                    html += @"</tbody>
                     </table>
                 </div>
             </div>
-        </section>
-";
+        </section>";
                 }
                 else
                 {
-                    MultiView1.ActiveViewIndex = 1;
+                    BookNotFound = true;
                     return "";
                 }
             }
             return html;
         }
-        public string NewBook()
+
+        private string GetNewBook()
         {
             string html = "";
             using (var EF = new ULSDBEntities())
@@ -453,30 +500,17 @@ namespace UniversityLibrarySystem
                                     select TableBook).Take(6);
                 foreach (var tableBook in queryNewBook)
                 {
-                    html += @"
-                        <div class=""col-xxl-3 col-xl-4 col-lg-4 col-md-12 col-sm-6"">
+                    html += @"<div class=""col-xxl-3 col-xl-4 col-lg-4 col-md-12 col-sm-6"">
                             <div class='properties pb-30'>";
                     int Available = -1;
                     if (tableBook.Available != null)
                     {
-                        if (tableBook.Available == 0)
-                        {
-                            Available = 0;
-                        }
-                        else
-                        {
-                            Available = 1;
-                        }
+                        Available = tableBook.Available == 0 ? 0 : 1;
                     }
-                    bool IsSpecial = false;
-                    if (tableBook.IsSpecial != null)
-                    {
-                        IsSpecial = tableBook.IsSpecial == true;
-                    }
+                    bool IsSpecial = tableBook.IsSpecial == true;
                     html += Components.bookCard(tableBook.ID, tableBook.BookTitle, tableBook.PicName, tableBook.AuthorName, tableBook.PublisherName, Available, IsSpecial);
-                    html += @"                            </div>
-                        </div>
-";
+                    html += @"</div>
+                        </div>";
                 }
             }
             if (html == "")

@@ -1,24 +1,31 @@
-﻿using Classes;
-using System;
-using System.Collections.Specialized;
+using Classes;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Linq;
-using System.Text.RegularExpressions;
-using System.Web.UI.WebControls;
 
 namespace UniversityLibrarySystem
 {
-    public partial class Categories : System.Web.UI.Page
+    public class CategoriesModel : PageModel
     {
-        int CatID = 0;
-        int numCard = 12;
-        protected void Page_Load(object sender, EventArgs e)
-        {
+        private int CatID = 0;
+        private const int NumCard = 12;
 
-            if (RouteData.Values["categoryID"] != null)
+        public string LinksTitle { get; set; } = "";
+        public string CategoriesLinksHtml { get; set; } = "";
+        public string BooksHtml { get; set; } = "";
+        public string SearchLabel { get; set; } = "";
+        public bool ShowNextPage { get; set; } = false;
+        public int CurrentPage { get; set; } = 1;
+
+        public IActionResult OnGet(string categoryID, int page = 1)
+        {
+            CurrentPage = page;
+
+            if (!string.IsNullOrEmpty(categoryID))
             {
                 try
                 {
-                    CatID = int.Parse(RouteData.Values["categoryID"].ToString());
+                    CatID = int.Parse(categoryID);
                     using (var EF = new ULSDBEntities())
                     {
                         var query = (from Table in EF.ULSTbl_Categories
@@ -26,8 +33,7 @@ namespace UniversityLibrarySystem
                                      select Table).FirstOrDefault();
                         if (query != null)
                         {
-                            Page.Title = SiteConfig.mixTitle("دسته بندی");
-
+                            ViewData["Title"] = SiteConfig.mixTitle("دسته بندی");
                         }
                         else
                         {
@@ -38,23 +44,23 @@ namespace UniversityLibrarySystem
                 catch
                 {
                     CatID = 0;
-                    Response.Redirect("/categories");
+                    return Redirect("/categories");
                 }
             }
             else
             {
                 CatID = 0;
-                Page.Title = SiteConfig.mixTitle("دسته بندی");
+                ViewData["Title"] = SiteConfig.mixTitle("دسته بندی");
             }
 
-            if (string.IsNullOrEmpty(LastID.Text))
-            {
-                LastID.Text = long.MaxValue.ToString();
-                Books.Text = GetBook();
-            }
+            LinksTitle = GetLinksTitle();
+            CategoriesLinksHtml = GetLinksCategories();
+            BooksHtml = GetBook(page);
+
+            return Page();
         }
 
-        public string GetLinksTitle()
+        private string GetLinksTitle()
         {
             if (CatID != 0)
             {
@@ -64,26 +70,24 @@ namespace UniversityLibrarySystem
                                  where Table.ID == CatID && Table.Status == true
                                  select Table).FirstOrDefault();
                     if (query != null)
-                        return @"                    <li>
+                        return @"<li>
                         <a href=""/Categories"" class=""breadcrumb-link"">دسته بندی</a>
                     </li>
                     <li class=""chevron""><span class=""fa fa-chevron-left""></span></li>
                     <li>
                         <span class=""breadcrumb-active"">" + query.Title + @"</span>
-                    </li>
-";
+                    </li>";
                 }
             }
-            return @"                    <li>
+            return @"<li>
                         <span class='breadcrumb-active'>دسته بندی</span>
                     </li>";
         }
 
-
-        public string LinksCategories()
+        private string GetLinksCategories()
         {
             string html = "";
-            var categories = SiteConfig.GetCategories(); // دریافت دسته‌بندی‌ها از کش یا پایگاه داده
+            var categories = SiteConfig.GetCategories();
 
             if (categories != null && categories.Any())
             {
@@ -102,59 +106,75 @@ namespace UniversityLibrarySystem
             return html;
         }
 
-        public string GetBook()
+        private string GetBook(int page)
         {
             string html = "";
-            long lsID = long.Parse(LastID.Text);
-            using (var EF = new ULSDBEntities())
+            long lastID = long.MaxValue;
+
+            if (page > 1)
             {
-                var queryNewBook = (from TableBook in EF.ULSTbl_Books
+                // For pagination, calculate offset
+                int skip = (page - 1) * NumCard;
+                using (var EF = new ULSDBEntities())
+                {
+                    var allBooks = (from TableBook in EF.ULSTbl_Books
                                     join TableCategory in EF.ULSTbl_Categories
                                     on TableBook.CategoryId equals TableCategory.ID
-                                    where lsID >= TableBook.ID && TableBook.Status == true && TableCategory.Status == true && (CatID == 0 || TableBook.CategoryId == CatID)
+                                    where TableBook.Status == true && TableCategory.Status == true && (CatID == 0 || TableBook.CategoryId == CatID)
                                     orderby TableBook.ID descending
-                                    select TableBook).Take(numCard+1).ToList();
+                                    select TableBook).Skip(skip).Take(NumCard + 1).ToList();
 
-                if (queryNewBook.Count == numCard+1)
-                {
-                    NextPage.Visible = true;
-                    queryNewBook.RemoveAt(numCard);
-                }
-                else
-                {
-                    NextPage.Visible = false;
-                }
-                try
-                {
-                    if (queryNewBook != null)
-                        LastID.Text = (queryNewBook[numCard - 1].ID-1).ToString();
-                }
-                catch
-                {
-                    LastID.Text = "0";
-                }
-                foreach (var tableBook in queryNewBook)
-                {
-                    bool isSpecial = tableBook.IsSpecial == true;
-                    int Available = -1;
-                    if (tableBook.Available != null)
+                    ShowNextPage = allBooks.Count == NumCard + 1;
+                    if (ShowNextPage) allBooks.RemoveAt(NumCard);
+
+                    foreach (var tableBook in allBooks)
                     {
-                        if (tableBook.Available == 0)
-                            Available = 0;
-                        else
-                            Available = 1;
-                    }
-                    html += @"                        <div class=""col-xl-3 col-lg-4 col-md-4 col-6"">
+                        bool isSpecial = tableBook.IsSpecial == true;
+                        int Available = -1;
+                        if (tableBook.Available != null)
+                        {
+                            Available = tableBook.Available == 0 ? 0 : 1;
+                        }
+                        html += @"<div class=""col-xl-3 col-lg-4 col-md-4 col-6"">
                             <div class='properties pb-30'>";
-                    html += Components.bookCard(tableBook.ID, tableBook.BookTitle, tableBook.PicName, tableBook.AuthorName, tableBook.PublisherName, Available, isSpecial);
-                    html += @"                            </div>
+                        html += Components.bookCard(tableBook.ID, tableBook.BookTitle, tableBook.PicName, tableBook.AuthorName, tableBook.PublisherName, Available, isSpecial);
+                        html += @"</div>
                         </div>";
+                    }
                 }
             }
+            else
+            {
+                using (var EF = new ULSDBEntities())
+                {
+                    var queryNewBook = (from TableBook in EF.ULSTbl_Books
+                                        join TableCategory in EF.ULSTbl_Categories
+                                        on TableBook.CategoryId equals TableCategory.ID
+                                        where lastID >= TableBook.ID && TableBook.Status == true && TableCategory.Status == true && (CatID == 0 || TableBook.CategoryId == CatID)
+                                        orderby TableBook.ID descending
+                                        select TableBook).Take(NumCard + 1).ToList();
+
+                    ShowNextPage = queryNewBook.Count == NumCard + 1;
+                    if (ShowNextPage) queryNewBook.RemoveAt(NumCard);
+
+                    foreach (var tableBook in queryNewBook)
+                    {
+                        bool isSpecial = tableBook.IsSpecial == true;
+                        int Available = -1;
+                        if (tableBook.Available != null)
+                        {
+                            Available = tableBook.Available == 0 ? 0 : 1;
+                        }
+                        html += @"<div class=""col-xl-3 col-lg-4 col-md-4 col-6"">
+                            <div class='properties pb-30'>";
+                        html += Components.bookCard(tableBook.ID, tableBook.BookTitle, tableBook.PicName, tableBook.AuthorName, tableBook.PublisherName, Available, isSpecial);
+                        html += @"</div>
+                        </div>";
+                    }
+                }
+            }
+
             return html;
         }
-
-        protected void NextPage_Click(object sender, EventArgs e) =>
-            Books.Text += GetBook();
     }
 }
